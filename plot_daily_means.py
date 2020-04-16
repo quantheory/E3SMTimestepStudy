@@ -20,28 +20,21 @@ suffix = '_d{}-{}'.format(day_strs[0], day_strs[-2])
 
 log_file = open("plot_daily_log{}.txt".format(suffix), 'w')
 
-times = ["03600", "07200", "10800", "14400", "18000", "21600", "25200", "28800",
-         "32400", "36000", "39600", "43200", "46800", "50400", "54000", "57600",
-         "61200", "64800", "68400", "72000", "75600", "79200", "82800", "00000"]
-
-ntimes = len(times)
+DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
 REF_CASE_NAME="timestep_ctrl"
 REF_CASE_LABEL="CTRL"
-REF_CASE_RUNDIR="/p/lscratchh/santos36/ACME/{}/run/".format(REF_CASE_NAME)
 TEST_CASE_LABELS={
     "timestep_all_10s": "ALL10",
-    "timestep_dyn_10s": "DYN10",
-    "timestep_MG2_10s": "MICRO10",
-    "timestep_CLUBB_10s": "CLUBB10",
-    "timestep_CLUBB_MG2_10s": "CLUBBMICRO10",
-    "timestep_CLUBB_MG2_60s": "CLUBBMICRO60",
+#    "timestep_dyn_10s": "DYN10",
+#    "timestep_MG2_10s": "MICRO10",
+#    "timestep_CLUBB_10s": "CLUBB10",
+#    "timestep_CLUBB_MG2_10s": "CLUBBMICRO10",
+#    "timestep_CLUBB_MG2_60s": "CLUBBMICRO60",
 #    "timestep_ZM_10s": "ZM10",
-    "timestep_ZM_300s": "ZM300",
+#    "timestep_ZM_300s": "ZM300",
 }
 TEST_CASE_NAMES=list(TEST_CASE_LABELS.keys())
-TEST_CASE_RUNDIRS=["/p/lscratchh/santos36/ACME/{}/run/".format(name)
-                   for name in TEST_CASE_NAMES]
 
 case_num = len(TEST_CASE_NAMES)
 
@@ -49,19 +42,12 @@ REF_FILE_NAMES = []
 TEST_FILE_NAMES = [[] for i in range(case_num)]
 
 for iday in range(ndays):
-    REF_FILE_NAMES.append([])
+    day_str = day_strs[iday]
+    REF_FILE_NAMES.append('{}/{}.0001-01-{}.nc'.format(DAILY_FILE_LOC, REF_CASE_NAME, day_str))
     for i in range(case_num):
-        TEST_FILE_NAMES[i].append([])
-    for time in times:
-        if time != "00000":
-            day_str = day_strs[iday]
-        else:
-            day_str = day_strs[iday+1]
-        REF_FILE_NAMES[iday].append('{}/{}.cam.h0.0001-01-{}-{}.nc'.format(REF_CASE_RUNDIR, REF_CASE_NAME, day_str, time))
-        for i in range(case_num):
-            TEST_FILE_NAMES[i][iday].append('{}/{}.cam.h0.0001-01-{}-{}.nc'.format(TEST_CASE_RUNDIRS[i], TEST_CASE_NAMES[i], day_str, time))
+        TEST_FILE_NAMES[i].append('{}/{}.0001-01-{}.nc'.format(DAILY_FILE_LOC, TEST_CASE_NAMES[i], day_str))
 
-rfile0 = nc4.Dataset(REF_FILE_NAMES[0][0], 'r')
+rfile0 = nc4.Dataset(REF_FILE_NAMES[0], 'r')
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
 area_sum = area.sum()
@@ -129,8 +115,8 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
 
     for iday in range(ndays):
         print("On day: ", iday+start_day, file=log_file, flush=True)
-        ref_mean, test_case_means, diff_case_means, case_rmses = calc_2D_var_stats(REF_FILE_NAMES[iday],
-                                                                                   [cfiles[iday] for cfiles in TEST_FILE_NAMES],
+        ref_mean, test_case_means, diff_case_means, case_rmses = calc_2D_var_stats([REF_FILE_NAMES[iday]],
+                                                                                   [[cfiles[iday]] for cfiles in TEST_FILE_NAMES],
                                                                                    names)
         for name in names:
             ref_means[name][iday] = ref_mean[name]*scales[name]
