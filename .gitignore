@@ -1,2 +1,4 @@
 *.png
 plot_daily_log_*.txt
+plot_2D_log_*.txt
+

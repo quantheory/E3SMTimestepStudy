@@ -6,124 +6,49 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import netCDF4 as nc4
 
+from e3sm_case_output import E3SMCaseOutput, day_str
+
 START_DAY = 1
 END_DAY = 30
 
+START_AVG_DAY = 3
+END_AVG_DAY = 15
+
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
+
+USE_PRESAER=True
 
 days = list(range(START_DAY, END_DAY+1))
 ndays = len(days)
 
-def day_str(day):
-    "Given an integer day, return the 2-digit day string used for file names."
-    return "{:02d}".format(day)
-
-suffix = '_d{}-{}_presaer'.format(day_str(START_DAY), day_str(END_DAY))
+suffix = '_d{}-{}'.format(day_str(START_DAY), day_str(END_DAY))
+if USE_PRESAER:
+    suffix += '_presaer'
 
 log_file = open("plot_daily_log{}.txt".format(suffix), 'w')
 
-class E3SMCaseOutput:
-
-    """Class that contains information about an E3SM timestep study case.
-
-    Methods:
-    __init__
-    get_daily_file_name
-    get_daily_values
-
-    Properties:
-    case_name
-    short_name
-    daily_dir
-    """
-
-    def __init__(self, case_name, short_name, daily_dir):
-        """Initialize a case from case directory and human-readable name.
-
-        All arguments are used to set the corresponding properties.
-        """
-        self._case_name = case_name
-        self._short_name = short_name
-        self._daily_dir = daily_dir
-
-    @property
-    def case_name(self):
-        """Name of case (as understood by CIME)."""
-        return self._case_name
-
-    @property
-    def short_name(self):
-        """Short human-readable name for log/plotting purposes."""
-        return self._short_name
-
-    @property
-    def daily_dir(self):
-        """Location of directory where daily averages are located."""
-        return self._daily_dir
-
-    def get_daily_file_name(self, day):
-        """Name of the file where the average values for a given day are stored.
-
-        Arguments:
-        day - Integer representing the desired day.
-        """
-        return '{}/{}.0001-01-{}.nc'.format(self.daily_dir, self.case_name,
-                                            day_str(day))
-
-    def get_daily_values(self, day, varnames):
-        """Retrieve the daily averages for a set of variables.
-
-        Arguments:
-        day - Integer corresponding to the desired day.
-        varnames - Names of variables being read in.
-
-        The output of this function is a dictionary associating the variable
-        names to arrays containing the associated values. The time dimension is
-        removed from the output arrays, but the shape is otherwise untouched.
-        """
-        variables = dict()
-        ncfile = nc4.Dataset(self.get_daily_file_name(day), 'r')
-        for varname in varnames:
-            ncvar = ncfile[varname]
-            var_dims = ncvar.get_dims()
-            time_ind = -1
-            for i in range(len(var_dims)):
-                if var_dims[i].name == 'time':
-                    time_ind = i
-                    break
-            new_dims = list(ncvar.shape)
-            if time_ind != -1:
-                del new_dims[time_ind]
-            variables[varname] = np.zeros(new_dims)
-            if time_ind == -1:
-                variables[varname] = ncvar[...]
-            else:
-                variables[varname] = np.squeeze(ncvar, axis=time_ind)
-            if "missing_value" in ncvar.ncattrs():
-                miss = ncvar.missing_value
-                # Following appears not to work due to rounding errors.
-                # variables[varname] += np.where(variables[varname] == miss, 0., variables[varname])
-                # Kludge for optical depths.
-                variables[varname] = np.where(variables[varname] > 1.e35, 0., variables[varname])
-        ncfile.close()
-        return variables
-
-#REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC)
-REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC)
-
-TEST_CASES = [
-#    E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC),
-#    E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC),
-    E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC),
-    E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC),
-    E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC),
-]
+if USE_PRESAER:
+    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC)
+    TEST_CASES = [
+        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC),
+    ]
+else:
+    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC)
+    TEST_CASES = [
+        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC),
+        #E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC),
+        #E3SMCaseOutput("timestep_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC),
+    ]
 
 case_num = len(TEST_CASES)
 
@@ -135,15 +60,7 @@ weights = area/area_sum
 rfile0.close()
 
 def calc_2D_var_stats(ref_case, test_cases, day, varnames):
-    ref_time_avg = ref_case.get_daily_values(day, varnames)
-    test_time_avgs = []
-    diff_time_avgs = []
-    for i in range(len(test_cases)):
-        test_time_avgs.append(test_cases[i].get_daily_values(day, varnames))
-        next_diff_time = dict()
-        for varname in varnames:
-            next_diff_time[varname] = test_time_avgs[i][varname] - ref_time_avg[varname]
-        diff_time_avgs.append(next_diff_time)
+    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_daily_averages(test_cases, day, varnames)
     ref_avg = dict()
     test_avgs = dict()
     diff_avgs = dict()
@@ -216,12 +133,12 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         plt.savefig('{}_rmse_time{}.png'.format(name, suffix))
         plt.close()
 
-        print(name, " has reference mean: ", sum(ref_means[name])/ndays,
+        print(name, " has reference mean: ", sum(ref_means[name][START_AVG_DAY:END_AVG_DAY])/ndays,
               file=log_file)
         for i in range(case_num):
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum(test_means[name][i])/ndays,
+            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum(test_means[name][i,START_AVG_DAY:END_AVG_DAY])/ndays,
                   file=log_file)
-            print(name, " has difference mean: ", sum(diff_means[name][i])/ndays,
+            print(name, " has difference mean: ", sum(diff_means[name][i,START_AVG_DAY:END_AVG_DAY])/ndays,
                   file=log_file)
 
 units = {
@@ -229,7 +146,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
-    'TGCLDCWP': r'$kg/m^2$',
+    'TGCLDIWP': r'$kg/m^2$',
     'TGCLDLWP': r'$kg/m^2$',
     'AODABS': r'units?',
     'AODUV': r'units?',
@@ -251,6 +168,10 @@ units = {
     'FSNTOAC': r'$W/m^2$',
     'FSUTOA': r'$W/m^2$',
     'FSUTOAC': r'$W/m^2$',
+    'CLDTOT': r'fraction',
+    'CLDLOW': r'fraction',
+    'CLDMED': r'fraction',
+    'CLDHGH': r'fraction',
 }
 names = list(units.keys())
 scales = dict()
