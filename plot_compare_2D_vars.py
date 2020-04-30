@@ -58,7 +58,7 @@ nlat = len(lat)
 nlon = len(lon)
 rfile0.close()
 
-def get_overall_averages(ref_case, test_cases, days, varnames):
+def get_overall_averages(ref_case, test_cases, days, varnames, scales):
     case_num = len(test_cases)
     day_num = len(days)
     ref_means = dict()
@@ -84,10 +84,10 @@ def get_overall_averages(ref_case, test_cases, days, varnames):
                 diff_means[icase][name] += diff_daily[icase][name]
 
     for name in varnames:
-        ref_means[name] /= day_num
+        ref_means[name] *= scales[name]/day_num
         for icase in range(case_num):
-            test_means[icase][name] /= day_num
-            diff_means[icase][name] /= day_num
+            test_means[icase][name] *= scales[name]/day_num
+            diff_means[icase][name] *= scales[name]/day_num
 
     return (ref_means, test_means, diff_means)
 
@@ -130,16 +130,16 @@ for name in varnames:
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 
-ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames)
+ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
 
 for name in varnames:
     clim_val = [ref_means[name].min(), ref_means[name].max()]
-    clim_diff = [1.e36, 1.e-36] # Kind of hacky...
+    clim_diff = 0.
     for icase in range(len(TEST_CASES)):
         clim_val[0] = min(clim_val[0], test_means[icase][name].min())
         clim_val[1] = max(clim_val[1], test_means[icase][name].max())
-        clim_diff[0] = min(clim_diff[0], diff_means[icase][name].min())
-        clim_diff[1] = max(clim_diff[1], diff_means[icase][name].max())
+        clim_diff = max(clim_diff, -diff_means[icase][name].min())
+        clim_diff = max(clim_diff, diff_means[icase][name].max())
 
     plt.pcolormesh(lon[:], lat[:], ref_means[name])
     bmap.drawcoastlines()
@@ -151,7 +151,7 @@ for name in varnames:
     ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
     plt.colorbar()
     plt.clim(clim_val[0], clim_val[1])
-    plt.title("{} for case {} (days {}-{})".format(name, REF_CASE.short_name, START_DAY, END_DAY))
+    plt.title("{} for case {}\n({}, days {}-{})".format(name, REF_CASE.short_name, units[name], START_DAY, END_DAY))
     plt.savefig('{}_{}{}.png'.format(name, REF_CASE.short_name, suffix))
     plt.close()
 
@@ -167,7 +167,7 @@ for name in varnames:
         ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.colorbar()
         plt.clim(clim_val[0], clim_val[1])
-        plt.title("{} for case {} (days {}-{})".format(name, case_name, START_DAY, END_DAY))
+        plt.title("{} for case {}\n({}, days {}-{})".format(name, case_name, units[name], START_DAY, END_DAY))
         plt.savefig('{}_{}{}.png'.format(name, case_name, suffix))
         plt.close()
 
@@ -180,7 +180,7 @@ for name in varnames:
         ax.set_yticks([60., 30., 0., -30., -60.])
         ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.colorbar()
-        plt.clim(clim_diff[0], clim_diff[1])
-        plt.title("Mean difference in {} for case {} (days {}-{})".format(name, case_name, START_DAY, END_DAY))
+        plt.clim(-clim_diff, clim_diff)
+        plt.title("Mean difference in {} for case {}\n({}, days {}-{})".format(name, case_name, units[name], START_DAY, END_DAY))
         plt.savefig('{}_diff_{}{}.png'.format(name, case_name, suffix))
         plt.close()
