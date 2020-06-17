@@ -12,55 +12,43 @@ from e3sm_case_output import E3SMCaseOutput, day_str
 cmap = plt.get_cmap('coolwarm')
 bmap = basemap.Basemap(lon_0=180.)
 
-START_DAY = 3
-END_DAY = 15
+START_MONTH = 1
+END_MONTH = 12
 
-DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs_lat_lon"
+MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs_lat_lon"
 
 USE_PRESAER=False
 
-days = list(range(START_DAY, END_DAY+1))
-ndays = len(days)
+months = list(range(START_MONTH, END_MONTH+1))
+nmonths = len(months)
 
-suffix = '_d{}-{}'.format(day_str(START_DAY), day_str(END_DAY))
+suffix = '_m{}-{}'.format(day_str(START_MONTH), day_str(END_MONTH))
 if USE_PRESAER:
     suffix += '_presaer'
 
 log_file = open("plot_2D_log{}.txt".format(suffix), 'w')
 
 if USE_PRESAER:
-    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC, START_DAY, END_DAY)
+    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", MONTHLY_FILE_LOC, START_MONTH, END_MONTH)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 else:
-    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
+    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", MONTHLY_FILE_LOC, START_MONTH, END_MONTH)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_all_10s", "ALL10", MONTHLY_FILE_LOC, START_MONTH, END_MONTH),
     ]
 
-rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
+rfile0 = nc4.Dataset(REF_CASE.get_monthly_file_name(1), 'r')
 lat = rfile0['lat'][:]
 lon = rfile0['lon'][:]
 nlat = len(lat)
 nlon = len(lon)
 rfile0.close()
 
-def get_overall_averages(ref_case, test_cases, days, varnames, scales):
+def get_overall_averages(ref_case, test_cases, months, varnames, scales):
     case_num = len(test_cases)
-    day_num = len(days)
+    month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    month_weights = [m / 365. for m in month_days]
     ref_means = dict()
     for name in varnames:
         ref_means[name] = np.zeros((nlat, nlon))
@@ -75,19 +63,31 @@ def get_overall_averages(ref_case, test_cases, days, varnames, scales):
         test_means.append(next_test_means)
         diff_means.append(next_diff_means)
 
-    for day in days:
-        ref_daily, test_daily, diff_daily = ref_case.compare_daily_averages(test_cases, day, varnames)
-        for name in varnames:
-            ref_means[name] += ref_daily[name]
+    varnames_read = [name for name in varnames if name != "PRECT"]
+    if "PRECT" in varnames:
+        if "PRECL" not in varnames:
+            varnames_read.append("PRECL")
+        if "PRECC" not in varnames:
+            varnames_read.append("PRECC")
+
+    for month in months:
+        ref_monthly, test_monthly, diff_monthly = ref_case.compare_monthly_averages(test_cases, month, varnames_read)
+        if "PRECT" in varnames:
+            ref_monthly["PRECT"] = ref_monthly["PRECL"] + ref_monthly["PRECC"]
             for icase in range(case_num):
-                test_means[icase][name] += test_daily[icase][name]
-                diff_means[icase][name] += diff_daily[icase][name]
+                test_monthly[icase]["PRECT"] = test_monthly[icase]["PRECL"] + test_monthly[icase]["PRECC"]
+                diff_monthly[icase]["PRECT"] = diff_monthly[icase]["PRECL"] + diff_monthly[icase]["PRECC"]
+        for name in varnames:
+            ref_means[name] += month_weights[month-1] * ref_monthly[name]
+            for icase in range(case_num):
+                test_means[icase][name] += month_weights[month-1] * test_monthly[icase][name]
+                diff_means[icase][name] += month_weights[month-1] * diff_monthly[icase][name]
 
     for name in varnames:
-        ref_means[name] *= scales[name]/day_num
+        ref_means[name] *= scales[name]
         for icase in range(case_num):
-            test_means[icase][name] *= scales[name]/day_num
-            diff_means[icase][name] *= scales[name]/day_num
+            test_means[icase][name] *= scales[name]
+            diff_means[icase][name] *= scales[name]
 
     return (ref_means, test_means, diff_means)
 
@@ -96,6 +96,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
+    'PRECT': r'$mm/day$',
     'TGCLDIWP': r'$kg/m^2$',
     'TGCLDLWP': r'$kg/m^2$',
     'AODABS': r'units?',
@@ -131,8 +132,9 @@ for name in varnames:
 scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
+scales['PRECT'] = 1000.*86400.
 
-ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
+ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, months, varnames, scales)
 
 for name in varnames:
     clim_val = [ref_means[name].min(), ref_means[name].max()]
@@ -142,6 +144,9 @@ for name in varnames:
         clim_val[1] = max(clim_val[1], test_means[icase][name].max())
         clim_diff = max(clim_diff, -diff_means[icase][name].min())
         clim_diff = max(clim_diff, diff_means[icase][name].max())
+
+    if name == "OMEGA500":
+        clim_diff = 0.05
 
     plt.pcolormesh(lon[:], lat[:], ref_means[name])
     bmap.drawcoastlines()
@@ -153,7 +158,7 @@ for name in varnames:
     ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
     plt.colorbar()
     plt.clim(clim_val[0], clim_val[1])
-    plt.title("{} for case {}\n({}, days {}-{})".format(name, REF_CASE.short_name, units[name], START_DAY, END_DAY))
+    plt.title("{} for case {}\n({}, months {}-{})".format(name, REF_CASE.short_name, units[name], START_MONTH, END_MONTH))
     plt.savefig('{}_{}{}.png'.format(name, REF_CASE.short_name, suffix))
     plt.close()
 
@@ -169,7 +174,7 @@ for name in varnames:
         ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.colorbar()
         plt.clim(clim_val[0], clim_val[1])
-        plt.title("{} for case {}\n({}, days {}-{})".format(name, case_name, units[name], START_DAY, END_DAY))
+        plt.title("{} for case {}\n({}, months {}-{})".format(name, case_name, units[name], START_MONTH, END_MONTH))
         plt.savefig('{}_{}{}.png'.format(name, case_name, suffix))
         plt.close()
 
@@ -183,6 +188,6 @@ for name in varnames:
         ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.colorbar()
         plt.clim(-clim_diff, clim_diff)
-        plt.title("Mean difference in {} for case {}\n({}, days {}-{})".format(name, case_name, units[name], START_DAY, END_DAY))
+        plt.title("Mean difference in {} for case {}\n({}, months {}-{})".format(name, case_name, units[name], START_MONTH, END_MONTH))
         plt.savefig('{}_diff_{}{}.png'.format(name, case_name, suffix))
         plt.close()

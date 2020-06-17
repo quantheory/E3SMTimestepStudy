@@ -9,45 +9,50 @@ import netCDF4 as nc4
 from e3sm_case_output import E3SMCaseOutput, day_str
 
 START_DAY = 1
-END_DAY = 30
+END_DAY = 15
+END_ZM10S_DAY = 19
 
 START_AVG_DAY = 3
 END_AVG_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
-USE_PRESAER=True
+USE_PRESAER=False
+TROPICS_ONLY=True
 
 days = list(range(START_DAY, END_DAY+1))
 ndays = len(days)
+navgdays = END_AVG_DAY - START_AVG_DAY + 1
 
 suffix = '_d{}-{}'.format(day_str(START_DAY), day_str(END_DAY))
 if USE_PRESAER:
     suffix += '_presaer'
+if TROPICS_ONLY:
+    suffix += '_tropics'
 
 log_file = open("plot_daily_log{}.txt".format(suffix), 'w')
 
 if USE_PRESAER:
-    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC)
+    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 else:
-    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC)
+    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC),
-        #E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC),
-        #E3SMCaseOutput("timestep_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10", DAILY_FILE_LOC),
-        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC),
+        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_ZM10S_DAY),
+        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 
 case_num = len(TEST_CASES)
@@ -55,6 +60,12 @@ case_num = len(TEST_CASES)
 rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
+# For tropics_only cases, just use a weight of 0 for all other cases.
+if TROPICS_ONLY:
+    lat = rfile0['lat'][:]
+    for i in range(ncol):
+        if np.abs(lat[i]) > 30.:
+            area[i] = 0.
 area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
@@ -71,11 +82,16 @@ def calc_2D_var_stats(ref_case, test_cases, day, varnames):
         diff_avgs[varname] = []
         rmses[varname] = []
         for i in range(len(test_cases)):
-            test_avgs[varname].append((test_time_avgs[i][varname] * weights).sum())
-            diff_avgs[varname].append((diff_time_avgs[i][varname] * weights).sum())
-            assert np.isclose(diff_avgs[varname][i], test_avgs[varname][i] - ref_avg[varname]), \
-                "Problem with diff of variable {} from case {}".format(varname, TEST_CASE_NAMES[i])
-            rmses[varname].append(np.sqrt((diff_time_avgs[i][varname]**2 * weights).sum()))
+            if test_cases[i].day_is_available(day):
+                test_avgs[varname].append((test_time_avgs[i][varname] * weights).sum())
+                diff_avgs[varname].append((diff_time_avgs[i][varname] * weights).sum())
+                assert np.isclose(diff_avgs[varname][i], test_avgs[varname][i] - ref_avg[varname]), \
+                    "Problem with diff of variable {} from case {}".format(varname, TEST_CASE_NAMES[i])
+                rmses[varname].append(np.sqrt((diff_time_avgs[i][varname]**2 * weights).sum()))
+            else:
+                test_avgs[varname].append(None)
+                diff_avgs[varname].append(None)
+                rmses[varname].append(None)
     return (ref_avg, test_avgs, diff_avgs, rmses)
 
 def plot_vars_over_time(names, units, scales, log_plot_names):
@@ -96,9 +112,10 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         for name in names:
             ref_means[name][iday] = ref_mean[name]*scales[name]
             for i in range(case_num):
-                test_means[name][i,iday] = test_case_means[name][i]*scales[name]
-                diff_means[name][i,iday] = diff_case_means[name][i]*scales[name]
-                rmses[name][i,iday] = case_rmses[name][i]*scales[name]
+                if TEST_CASES[i].day_is_available(day):
+                    test_means[name][i,iday] = test_case_means[name][i]*scales[name]
+                    diff_means[name][i,iday] = diff_case_means[name][i]*scales[name]
+                    rmses[name][i,iday] = case_rmses[name][i]*scales[name]
 
     for name in names:
         if name in log_plot_names:
@@ -107,38 +124,47 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             plot_var = plt.plot
         plot_var(days, ref_means[name], label=REF_CASE.short_name)
         for i in range(case_num):
-            plot_var(days, test_means[name][i,:], label=TEST_CASES[i].short_name)
+            start_ind = TEST_CASES[i].start_day - START_DAY
+            end_ind = TEST_CASES[i].end_day - START_DAY + 1
+            plot_var(days[start_ind:end_ind],
+                     test_means[name][i,start_ind:end_ind],
+                     label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
         plt.ylabel("Mean {} ({})".format(name, units[name]))
-        plt.legend()
         plt.savefig('{}_time{}.png'.format(name, suffix))
         plt.close()
 
         for i in range(case_num):
-            plot_var(days, diff_means[name][i,:], label=TEST_CASES[i].short_name)
+            start_ind = TEST_CASES[i].start_day - START_DAY
+            end_ind = TEST_CASES[i].end_day - START_DAY + 1
+            plot_var(days[start_ind:end_ind],
+                     diff_means[name][i,start_ind:end_ind],
+                     label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
         plt.ylabel("Mean {} difference ({})".format(name, units[name]))
-        plt.legend()
         plt.savefig('{}_diff_time{}.png'.format(name, suffix))
         plt.close()
 
         for i in range(case_num):
-            plt.plot(days, rmses[name][i,:], label=TEST_CASES[i].short_name)
+            start_ind = TEST_CASES[i].start_day - START_DAY
+            end_ind = TEST_CASES[i].end_day - START_DAY + 1
+            plot_var(days[start_ind:end_ind],
+                     rmses[name][i,start_ind:end_ind],
+                     label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
-        plt.ylabel("{} RMSE ({})".format(name, units))
-        plt.legend()
+        plt.ylabel("{} RMSE ({})".format(name, units[name]))
         plt.savefig('{}_rmse_time{}.png'.format(name, suffix))
         plt.close()
 
-        print(name, " has reference mean: ", sum(ref_means[name][START_AVG_DAY:END_AVG_DAY])/ndays,
+        print(name, " has reference mean: ", sum(ref_means[name][START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
               file=log_file)
         for i in range(case_num):
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum(test_means[name][i,START_AVG_DAY:END_AVG_DAY])/ndays,
+            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum(test_means[name][i,START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
                   file=log_file)
-            print(name, " has difference mean: ", sum(diff_means[name][i,START_AVG_DAY:END_AVG_DAY])/ndays,
+            print(name, " has difference mean: ", sum(diff_means[name][i,START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
                   file=log_file)
 
 units = {
@@ -172,11 +198,13 @@ units = {
     'CLDLOW': r'fraction',
     'CLDMED': r'fraction',
     'CLDHGH': r'fraction',
+    'OMEGA500': r'Pa/s',
 }
 names = list(units.keys())
 scales = dict()
 for name in names:
     scales[name] = 1.
+scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 
