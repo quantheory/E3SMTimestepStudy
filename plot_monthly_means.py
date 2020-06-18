@@ -17,7 +17,7 @@ END_AVG_MONTH = 12
 MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs/"
 
 USE_PRESAER=False
-TROPICS_ONLY=False
+TROPICS_ONLY=True
 
 months = list(range(START_MONTH, END_MONTH+1))
 nmonths = len(months)
@@ -57,7 +57,18 @@ weights = area/area_sum
 rfile0.close()
 
 def calc_2D_var_stats(ref_case, test_cases, month, varnames):
-    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_monthly_averages(test_cases, month, varnames)
+    varnames_read = [name for name in varnames if name != "PRECT"]
+    if "PRECT" in varnames:
+        if "PRECL" not in varnames:
+            varnames_read.append("PRECL")
+        if "PRECC" not in varnames:
+            varnames_read.append("PRECC")
+    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_monthly_averages(test_cases, month, varnames_read)
+    if "PRECT" in varnames:
+        ref_time_avg["PRECT"] = ref_time_avg["PRECL"] + ref_time_avg["PRECC"]
+        for icase in range(case_num):
+            test_time_avgs[icase]["PRECT"] = test_time_avgs[icase]["PRECL"] + test_time_avgs[icase]["PRECC"]
+            diff_time_avgs[icase]["PRECT"] = diff_time_avgs[icase]["PRECL"] + diff_time_avgs[icase]["PRECC"]
     ref_avg = dict()
     test_avgs = dict()
     diff_avgs = dict()
@@ -154,6 +165,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
+    'PRECT': r'$mm/day$',
     'TGCLDIWP': r'$kg/m^2$',
     'TGCLDLWP': r'$kg/m^2$',
     'AODABS': r'units?',
@@ -181,6 +193,8 @@ units = {
     'CLDMED': r'fraction',
     'CLDHGH': r'fraction',
     'OMEGA500': r'Pa/s',
+    'LHFLX': r'$W/m^2$',
+    'SHFLX': r'$W/m^2$',
 }
 names = list(units.keys())
 scales = dict()
@@ -189,6 +203,7 @@ for name in names:
 scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
+scales['PRECT'] = 1000.*86400.
 
 log_plot_names = []#'AODABS', 'AODVIS', 'AODUV']
 

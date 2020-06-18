@@ -124,6 +124,8 @@ units = {
     'CLDMED': r'fraction',
     'CLDHGH': r'fraction',
     'OMEGA500': r'Pa/s',
+    'LHFLX': r'$W/m^2$',
+    'SHFLX': r'$W/m^2$',
 }
 varnames = list(units.keys())
 scales = dict()

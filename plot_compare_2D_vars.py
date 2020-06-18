@@ -49,6 +49,7 @@ else:
         E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_all_rad_10s", "ALLRAD10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 
 rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
@@ -75,8 +76,20 @@ def get_overall_averages(ref_case, test_cases, days, varnames, scales):
         test_means.append(next_test_means)
         diff_means.append(next_diff_means)
 
+    varnames_read = [name for name in varnames if name != "PRECT"]
+    if "PRECT" in varnames:
+        if "PRECL" not in varnames:
+            varnames_read.append("PRECL")
+        if "PRECC" not in varnames:
+            varnames_read.append("PRECC")
+
     for day in days:
-        ref_daily, test_daily, diff_daily = ref_case.compare_daily_averages(test_cases, day, varnames)
+        ref_daily, test_daily, diff_daily = ref_case.compare_daily_averages(test_cases, day, varnames_read)
+        if "PRECT" in varnames:
+            ref_daily["PRECT"] = ref_daily["PRECL"] + ref_daily["PRECC"]
+            for icase in range(case_num):
+                test_daily[icase]["PRECT"] = test_daily[icase]["PRECL"] + test_daily[icase]["PRECC"]
+                diff_daily[icase]["PRECT"] = diff_daily[icase]["PRECL"] + diff_daily[icase]["PRECC"]
         for name in varnames:
             ref_means[name] += ref_daily[name]
             for icase in range(case_num):
@@ -96,6 +109,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
+    'PRECT': r'$mm/day$',
     'TGCLDIWP': r'$kg/m^2$',
     'TGCLDLWP': r'$kg/m^2$',
     'AODABS': r'units?',
@@ -123,6 +137,8 @@ units = {
     'CLDMED': r'fraction',
     'CLDHGH': r'fraction',
     'OMEGA500': r'Pa/s',
+    'LHFLX': r'$W/m^2$',
+    'SHFLX': r'$W/m^2$',
 }
 varnames = list(units.keys())
 scales = dict()
@@ -131,6 +147,7 @@ for name in varnames:
 scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
+scales['PRECT'] = 1000.*86400.
 
 ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
 
