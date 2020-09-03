@@ -9,7 +9,7 @@ import netCDF4 as nc4
 from e3sm_case_output import E3SMCaseOutput, day_str
 
 START_DAY = 1
-END_DAY = 15
+END_DAY = 30
 END_ZM10S_DAY = 19
 
 START_AVG_DAY = 3
@@ -52,7 +52,7 @@ else:
         E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
 #        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_ZM10S_DAY),
-        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_rad_10s", "ALLRAD10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 
@@ -130,6 +130,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                     rmses[name][i,iday] = case_rmses[name][i]*scales[name]
 
     for name in names:
+        plot_name = name
+        if name in plot_names:
+            plot_name = plot_names[name]
         if name in log_plot_names:
             plot_var = plt.semilogy
         else:
@@ -143,7 +146,7 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
-        plt.ylabel("Mean {} ({})".format(name, units[name]))
+        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
         plt.savefig('{}_time{}.png'.format(name, suffix))
         plt.close()
 
@@ -155,7 +158,7 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
-        plt.ylabel("Mean {} difference ({})".format(name, units[name]))
+        plt.ylabel("Mean {} difference ({})".format(plot_name, units[name]))
         plt.savefig('{}_diff_time{}.png'.format(name, suffix))
         plt.close()
 
@@ -167,7 +170,7 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("day")
-        plt.ylabel("{} RMSE ({})".format(name, units[name]))
+        plt.ylabel("{} RMSE ({})".format(plot_name, units[name]))
         plt.savefig('{}_rmse_time{}.png'.format(name, suffix))
         plt.close()
 
@@ -178,6 +181,26 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                   file=log_file)
             print(name, " has difference mean: ", sum(diff_means[name][i,START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
                   file=log_file)
+
+plot_names = {
+    'LWCF': "long wave cloud forcing",
+    'SWCF': "short wave cloud forcing",
+    'PRECC': "convective precipitation",
+    'PRECL': "large scale precipitation",
+    'PRECT': "total precipitation",
+    'TGCLDIWP': "ice water path",
+    'TGCLDLWP': "liquid water path",
+    'CLDTOT': "cloud area fraction",
+    'CLDLOW': "low cloud area fraction",
+    'CLDMED': "medium cloud area fraction",
+    'CLDHGH': "high cloud area fraction",
+    'LHFLX': "latent heat flux",
+    'SHFLX': "sensible heat flux",
+    'TAU': "surface wind stress",
+    'TS': "surface temperature",
+    'PSL': "sea level pressure",
+    'OMEGA500': "vertical velocity at 500 mb",
+}
 
 units = {
     'LWCF': r'$W/m^2$',

@@ -139,6 +139,9 @@ units = {
     'OMEGA500': r'Pa/s',
     'LHFLX': r'$W/m^2$',
     'SHFLX': r'$W/m^2$',
+    'TS': "surface temperature",
+    'PSL': "sea level pressure",
+    'U10': "10 meter wind speed",
 }
 varnames = list(units.keys())
 scales = dict()

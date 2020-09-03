@@ -8,22 +8,41 @@ import netCDF4 as nc4
 
 from e3sm_case_output import E3SMCaseOutput, day_str
 
+START_YEAR = 1
 START_MONTH = 1
-END_MONTH = 12
+END_YEAR = 4
+END_MONTH = 2
 
-START_AVG_MONTH = 1
-END_AVG_MONTH = 12
+START_AVG_YEAR = 1
+START_AVG_MONTH = 3
+END_AVG_YEAR = 4
+END_AVG_MONTH = 2
 
 MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs/"
 
 USE_PRESAER=False
-TROPICS_ONLY=True
+TROPICS_ONLY=False
 
-months = list(range(START_MONTH, END_MONTH+1))
-nmonths = len(months)
-navgmonths = END_AVG_MONTH - START_AVG_MONTH + 1
+nmonths = (END_YEAR - START_YEAR) * 12 - (START_MONTH - 1) + END_MONTH
+imonths = list(range(nmonths))
+curr_month = START_MONTH
+curr_year = START_YEAR
+months = []
+years = []
+for i in range(nmonths):
+    months.append(curr_month)
+    years.append(curr_year)
+    curr_month += 1
+    if curr_month > 12:
+        curr_month = 1
+        curr_year += 1
+navgmonths = (END_AVG_YEAR - START_AVG_YEAR) * 12 \
+    - (START_AVG_MONTH - 1) + END_AVG_MONTH
 
-suffix = '_m{}-{}'.format(day_str(START_MONTH), day_str(END_MONTH))
+suffix = '_y{}m{}-y{}m{}'.format(day_str(START_YEAR),
+                                 day_str(START_MONTH),
+                                 day_str(END_YEAR),
+                                 day_str(END_MONTH))
 if USE_PRESAER:
     suffix += '_presaer'
 if TROPICS_ONLY:
@@ -43,7 +62,7 @@ else:
 
 case_num = len(TEST_CASES)
 
-rfile0 = nc4.Dataset(REF_CASE.get_monthly_file_name(START_MONTH), 'r')
+rfile0 = nc4.Dataset(REF_CASE.get_monthly_file_name(START_MONTH, START_YEAR), 'r')
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
 # For tropics_only cases, just use a weight of 0 for all other cases.
@@ -56,19 +75,29 @@ area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
 
-def calc_2D_var_stats(ref_case, test_cases, month, varnames):
-    varnames_read = [name for name in varnames if name != "PRECT"]
+def calc_2D_var_stats(ref_case, test_cases, month, year, varnames):
+    varnames_read = [name for name in varnames if name != "PRECT" and name != "TAU"]
     if "PRECT" in varnames:
         if "PRECL" not in varnames:
             varnames_read.append("PRECL")
         if "PRECC" not in varnames:
             varnames_read.append("PRECC")
-    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_monthly_averages(test_cases, month, varnames_read)
+    if "TAU" in varnames:
+        if "TAUX" not in varnames:
+            varnames_read.append("TAUX")
+        if "TAUY" not in varnames:
+            varnames_read.append("TAUY")
+    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_monthly_averages(test_cases, month, year, varnames_read)
     if "PRECT" in varnames:
         ref_time_avg["PRECT"] = ref_time_avg["PRECL"] + ref_time_avg["PRECC"]
         for icase in range(case_num):
             test_time_avgs[icase]["PRECT"] = test_time_avgs[icase]["PRECL"] + test_time_avgs[icase]["PRECC"]
             diff_time_avgs[icase]["PRECT"] = diff_time_avgs[icase]["PRECL"] + diff_time_avgs[icase]["PRECC"]
+    if "TAU" in varnames:
+        ref_time_avg["TAU"] = np.sqrt(ref_time_avg["TAUX"]**2 + ref_time_avg["TAUY"]**2)
+        for icase in range(case_num):
+            test_time_avgs[icase]["TAU"] = np.sqrt(test_time_avgs[icase]["TAUX"]**2 + test_time_avgs[icase]["TAUY"]**2)
+            diff_time_avgs[icase]["TAU"] = test_time_avgs[icase]["TAU"] - ref_time_avg["TAU"]
     ref_avg = dict()
     test_avgs = dict()
     diff_avgs = dict()
@@ -99,8 +128,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
 
     for imonth in range(nmonths):
         month = months[imonth]
-        print("On month: ", month, file=log_file, flush=True)
-        ref_mean, test_case_means, diff_case_means, case_rmses = calc_2D_var_stats(REF_CASE, TEST_CASES, month, names)
+        year = years[imonth]
+        print("On month: ", month, ", year: ", year, file=log_file, flush=True)
+        ref_mean, test_case_means, diff_case_means, case_rmses = calc_2D_var_stats(REF_CASE, TEST_CASES, month, year, names)
         for name in names:
             ref_means[name][imonth] = ref_mean[name]*scales[name]
             for i in range(case_num):
@@ -109,56 +139,75 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                 rmses[name][i,imonth] = case_rmses[name][i]*scales[name]
 
     for name in names:
+        plot_name = name
+        if name in plot_names:
+            plot_name = plot_names[name]
         if name in log_plot_names:
             plot_var = plt.semilogy
         else:
             plot_var = plt.plot
-        plot_var(months, ref_means[name], label=REF_CASE.short_name)
+        plot_var(imonths, ref_means[name], label=REF_CASE.short_name)
         for i in range(case_num):
-            start_ind = TEST_CASES[i].start_day - START_MONTH
-            end_ind = TEST_CASES[i].end_day - START_MONTH + 1
-            plot_var(months[start_ind:end_ind],
-                     test_means[name][i,start_ind:end_ind],
+            plot_var(imonths,
+                     test_means[name][i,:],
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
-        plt.ylabel("Mean {} ({})".format(name, units[name]))
+        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
         plt.savefig('{}_time{}.png'.format(name, suffix))
         plt.close()
 
         for i in range(case_num):
-            start_ind = TEST_CASES[i].start_day - START_MONTH
-            end_ind = TEST_CASES[i].end_day - START_MONTH + 1
-            plot_var(months[start_ind:end_ind],
-                     diff_means[name][i,start_ind:end_ind],
+            plot_var(imonths,
+                     diff_means[name][i,:],
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
-        plt.ylabel("Mean {} difference ({})".format(name, units[name]))
+        plt.ylabel("Mean {} difference ({})".format(plot_name, units[name]))
         plt.savefig('{}_diff_time{}.png'.format(name, suffix))
         plt.close()
 
         for i in range(case_num):
-            start_ind = TEST_CASES[i].start_day - START_MONTH
-            end_ind = TEST_CASES[i].end_day - START_MONTH + 1
-            plot_var(months[start_ind:end_ind],
-                     rmses[name][i,start_ind:end_ind],
+            plot_var(imonths,
+                     rmses[name][i,:],
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
-        plt.ylabel("{} RMSE ({})".format(name, units[name]))
+        plt.ylabel("{} RMSE ({})".format(plot_name, units[name]))
         plt.savefig('{}_rmse_time{}.png'.format(name, suffix))
         plt.close()
 
         month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        month_weights = [m / 365. for m in month_days]
-        print(name, " has reference mean: ", sum([ref_means[name][j] * month_weights[j] for j in range(START_AVG_MONTH-START_MONTH, END_AVG_MONTH-START_MONTH+1)]),
+        month_weights = [month_days[months[imonth] - 1] for imonth in imonths]
+        weight_norm = sum(month_weights)
+        month_weights = [weight / weight_norm for weight in month_weights]
+        print(name, " has reference mean: ", sum([ref_means[name][imonth] * month_weights[imonth] for imonth in imonths]),
               file=log_file)
         for i in range(case_num):
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum([test_means[name][i,j] * month_weights[j] for j in range(START_AVG_MONTH-START_MONTH, END_AVG_MONTH-START_MONTH+1)]),
+            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum([test_means[name][i,imonth] * month_weights[imonth] for imonth in imonths]),
                   file=log_file)
-            print(name, " has difference mean: ", sum([diff_means[name][i,j] * month_weights[j] for j in range(START_AVG_MONTH-START_MONTH, END_AVG_MONTH-START_MONTH+1)]),
+            print(name, " has difference mean: ", sum([diff_means[name][i,imonth] * month_weights[imonth] for imonth in imonths]),
                   file=log_file)
+
+plot_names = {
+    'LWCF': "long wave cloud forcing",
+    'SWCF': "short wave cloud forcing",
+    'PRECC': "convective precipitation",
+    'PRECL': "large scale precipitation",
+    'PRECT': "total precipitation",
+    'TGCLDIWP': "ice water path",
+    'TGCLDLWP': "liquid water path",
+    'CLDTOT': "cloud area fraction",
+    'CLDLOW': "low cloud area fraction",
+    'CLDMED': "medium cloud area fraction",
+    'CLDHGH': "high cloud area fraction",
+    'LHFLX': "latent heat flux",
+    'SHFLX': "sensible heat flux",
+    'TAU': "surface wind stress",
+    'TS': "surface temperature",
+    'PSL': "sea level pressure",
+    'OMEGA500': "vertical velocity at 500 mb",
+}
 
 units = {
     'LWCF': r'$W/m^2$',
@@ -195,6 +244,11 @@ units = {
     'OMEGA500': r'Pa/s',
     'LHFLX': r'$W/m^2$',
     'SHFLX': r'$W/m^2$',
+    'TAU': r'$N/m^2$',
+    'TAUX': r'$N/m^2$',
+    'TAUY': r'$N/m^2$',
+    'TS': r'$K$',
+    'PSL': r'$Pa$',
 }
 names = list(units.keys())
 scales = dict()

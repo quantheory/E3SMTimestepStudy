@@ -74,15 +74,16 @@ class E3SMCaseOutput:
         return '{}/{}.0001-01-{}.nc'.format(self.daily_dir, self.case_name,
                                             day_str(day))
 
-    def get_monthly_file_name(self, month):
+    def get_monthly_file_name(self, month, year):
         """Name of the file where the average values for a given month are stored.
 
         Arguments:
         month - Integer representing the desired month.
+        year - Integer representing year containing the desired month.
         """
         #assert self.day_is_available(day)
-        return '{}/{}.0001-{}.nc'.format(self.daily_dir, self.case_name,
-                                         day_str(month))
+        return '{}/{}.00{}-{}.nc'.format(self.daily_dir, self.case_name,
+                                         day_str(year), day_str(month))
 
     def get_daily_values(self, day, varnames):
         """Retrieve the daily averages for a set of variables.
@@ -123,11 +124,12 @@ class E3SMCaseOutput:
         ncfile.close()
         return variables
 
-    def get_monthly_values(self, month, varnames):
+    def get_monthly_values(self, month, year, varnames):
         """Retrieve the monthly averages for a set of variables.
 
         Arguments:
         month - Integer corresponding to the desired month.
+        year - Integer representing year containing the desired month.
         varnames - Names of variables being read in.
 
         The output of this function is a dictionary associating the variable
@@ -136,7 +138,7 @@ class E3SMCaseOutput:
         """
         # assert self.day_is_available(day)
         variables = dict()
-        ncfile = nc4.Dataset(self.get_monthly_file_name(month), 'r')
+        ncfile = nc4.Dataset(self.get_monthly_file_name(month, year), 'r')
         for varname in varnames:
             ncvar = ncfile[varname]
             var_dims = ncvar.get_dims()
@@ -197,12 +199,13 @@ class E3SMCaseOutput:
                 diff_time_avgs.append(None)
         return (ref_time_avg, test_time_avgs, diff_time_avgs)
 
-    def compare_monthly_averages(self, test_cases, month, varnames):
+    def compare_monthly_averages(self, test_cases, month, year, varnames):
         """Compares the monthly averages of this case to a number of other cases.
 
         Arguments:
         test_cases - Other case objects to compare this case to.
         month - Integer corresponding to the desired month.
+        year - Integer representing year containing the desired month.
         varnames - Names of variables being read in.
 
         The output of this function is a tuple of size 3. The first output is a
@@ -214,11 +217,11 @@ class E3SMCaseOutput:
         and this case.
 
         """
-        ref_time_avg = self.get_monthly_values(month, varnames)
+        ref_time_avg = self.get_monthly_values(month, year, varnames)
         test_time_avgs = []
         diff_time_avgs = []
         for i in range(len(test_cases)):
-            test_time_avgs.append(test_cases[i].get_monthly_values(month, varnames))
+            test_time_avgs.append(test_cases[i].get_monthly_values(month, year, varnames))
             next_diff_time = dict()
             for varname in varnames:
                 next_diff_time[varname] = test_time_avgs[i][varname] - ref_time_avg[varname]
