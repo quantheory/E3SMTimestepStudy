@@ -36,7 +36,7 @@ def std(variable, axis='xy'):
 parameter = core_parameter.CoreParameter()
 parameter.test_data_path = '/p/lscratchh/santos36/timestep_monthly_avgs_lat_lon/'
 parameter.reference_data_path = '/p/lscratchh/santos36/timestep_monthly_avgs_lat_lon/'
-parameter.test_name = 'timestep_all_10s'
+parameter.test_name = 'timestep_ctrl_ne16'
 parameter.ref_name = 'timestep_ctrl'
 parameter.results_dir = '/g/g14/santos36/Timesteps/'
 parameter.seasons = ['ANN']
@@ -113,4 +113,4 @@ for season in parameter.seasons:
 
 #    plt.title(season + ': Spatial Variability', y=1.08)
     plt.title('Taylor Diagram - Spatial Variability', y=1.08)
-    fig.savefig(os.path.join(parameter.results_dir, season + '_metrics_taylor_diag_timesteps.png'))
+    fig.savefig(os.path.join(parameter.results_dir, season + '_metrics_taylor_diag_timesteps_ne16.png'))

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from functools import partial
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -22,6 +24,10 @@ MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs/"
 
 USE_PRESAER=False
 TROPICS_ONLY=False
+MIDLATITUDES_ONLY=False
+
+assert not (TROPICS_ONLY and MIDLATITUDES_ONLY), \
+    "can't do only tropics and only midlatitudes"
 
 nmonths = (END_YEAR - START_YEAR) * 12 - (START_MONTH - 1) + END_MONTH
 imonths = list(range(nmonths))
@@ -47,6 +53,8 @@ if USE_PRESAER:
     suffix += '_presaer'
 if TROPICS_ONLY:
     suffix += '_tropics'
+if MIDLATITUDES_ONLY:
+    suffix += '_midlats'
 
 log_file = open("plot_monthly_log{}.txt".format(suffix), 'w')
 
@@ -63,6 +71,7 @@ else:
 case_num = len(TEST_CASES)
 
 rfile0 = nc4.Dataset(REF_CASE.get_monthly_file_name(START_MONTH, START_YEAR), 'r')
+nlev = len(rfile0.dimensions['lev'])
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
 # For tropics_only cases, just use a weight of 0 for all other cases.
@@ -71,11 +80,17 @@ if TROPICS_ONLY:
     for i in range(ncol):
         if np.abs(lat[i]) > 30.:
             area[i] = 0.
+# Same for midlatitudes.
+elif MIDLATITUDES_ONLY:
+    lat = rfile0['lat'][:]
+    for i in range(ncol):
+        if np.abs(lat[i]) < 30. or np.abs(lat[i]) > 60.:
+            area[i] = 0.
 area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
 
-def calc_2D_var_stats(ref_case, test_cases, month, year, varnames):
+def calc_var_stats(ref_case, test_cases, month, year, varnames):
     varnames_read = [name for name in varnames if name != "PRECT" and name != "TAU"]
     if "PRECT" in varnames:
         if "PRECL" not in varnames:
@@ -103,17 +118,38 @@ def calc_2D_var_stats(ref_case, test_cases, month, year, varnames):
     diff_avgs = dict()
     rmses = dict()
     for varname in varnames:
-        ref_avg[varname] = (ref_time_avg[varname] * weights).sum()
+        if varname in vars_3D:
+            ref_avg[varname] = np.zeros((nlev,))
+            for jlev in range(nlev):
+                ref_avg[varname][jlev] = (ref_time_avg[varname][jlev,:] * weights).sum()
+        else:
+            ref_avg[varname] = (ref_time_avg[varname] * weights).sum()
         test_avgs[varname] = []
         diff_avgs[varname] = []
         rmses[varname] = []
         for i in range(len(test_cases)):
-            test_avgs[varname].append((test_time_avgs[i][varname] * weights).sum())
-            diff_avgs[varname].append((diff_time_avgs[i][varname] * weights).sum())
-            assert np.isclose(diff_avgs[varname][i], test_avgs[varname][i] - ref_avg[varname]), \
-                "Problem with diff of variable {} from case {}".format(varname, TEST_CASE_NAMES[i])
-            rmses[varname].append(np.sqrt((diff_time_avgs[i][varname]**2 * weights).sum()))
+            if varname in vars_3D:
+                test_avgs[varname].append(np.zeros((nlev,)))
+                diff_avgs[varname].append(np.zeros((nlev,)))
+                rmses[varname].append(np.zeros((nlev,)))
+                for jlev in range(nlev):
+                    test_avgs[varname][-1][jlev] = (test_time_avgs[i][varname][jlev,:] * weights).sum()
+                    diff_avgs[varname][-1][jlev] = (diff_time_avgs[i][varname][jlev,:] * weights).sum()
+                    rmses[varname][-1][jlev] = np.sqrt((diff_time_avgs[i][varname][jlev,:]**2 * weights).sum())
+            else:
+                test_avgs[varname].append((test_time_avgs[i][varname] * weights).sum())
+                diff_avgs[varname].append((diff_time_avgs[i][varname] * weights).sum())
+                rmses[varname].append(np.sqrt((diff_time_avgs[i][varname]**2 * weights).sum()))
+            assert np.isclose(diff_avgs[varname][i], test_avgs[varname][i] - ref_avg[varname]).all(), \
+                "Problem with diff of variable {} from case {}".format(varname, TEST_CASES[i].short_name)
     return (ref_avg, test_avgs, diff_avgs, rmses)
+
+# Possible ways to extract a 2D section start here:
+def identity(x):
+    return x
+
+def slice_at(level, x):
+    return x[:,level]
 
 def plot_vars_over_time(names, units, scales, log_plot_names):
     ref_means = dict()
@@ -121,16 +157,22 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
     diff_means = dict()
     rmses = dict()
     for name in names:
-        ref_means[name] = np.zeros((nmonths,))
-        test_means[name] = np.zeros((case_num, nmonths))
-        diff_means[name] = np.zeros((case_num, nmonths))
-        rmses[name] = np.zeros((case_num, nmonths))
+        if name in vars_3D:
+            ref_means[name] = np.zeros((nmonths, nlev))
+            test_means[name] = np.zeros((case_num, nmonths, nlev))
+            diff_means[name] = np.zeros((case_num, nmonths, nlev))
+            rmses[name] = np.zeros((case_num, nmonths, nlev))
+        else:
+            ref_means[name] = np.zeros((nmonths,))
+            test_means[name] = np.zeros((case_num, nmonths))
+            diff_means[name] = np.zeros((case_num, nmonths))
+            rmses[name] = np.zeros((case_num, nmonths))
 
     for imonth in range(nmonths):
         month = months[imonth]
         year = years[imonth]
         print("On month: ", month, ", year: ", year, file=log_file, flush=True)
-        ref_mean, test_case_means, diff_case_means, case_rmses = calc_2D_var_stats(REF_CASE, TEST_CASES, month, year, names)
+        ref_mean, test_case_means, diff_case_means, case_rmses = calc_var_stats(REF_CASE, TEST_CASES, month, year, names)
         for name in names:
             ref_means[name][imonth] = ref_mean[name]*scales[name]
             for i in range(case_num):
@@ -142,14 +184,21 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         plot_name = name
         if name in plot_names:
             plot_name = plot_names[name]
+
+        get_2D = identity
+        if name == "RELHUM" or name == "Q" or name == "T":
+            get_2D = partial(slice_at, nlev-1)
+
         if name in log_plot_names:
             plot_var = plt.semilogy
         else:
             plot_var = plt.plot
-        plot_var(imonths, ref_means[name], label=REF_CASE.short_name)
+        ref_plot_var = get_2D(ref_means[name])
+        plot_var(imonths, ref_plot_var, label=REF_CASE.short_name)
         for i in range(case_num):
+            test_plot_var = get_2D(test_means[name][i])
             plot_var(imonths,
-                     test_means[name][i,:],
+                     test_plot_var,
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
@@ -158,8 +207,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         plt.close()
 
         for i in range(case_num):
+            diff_plot_var = get_2D(diff_means[name][i])
             plot_var(imonths,
-                     diff_means[name][i,:],
+                     diff_plot_var,
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
@@ -168,8 +218,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         plt.close()
 
         for i in range(case_num):
+            rmse_plot_var = get_2D(rmses[name][i])
             plot_var(imonths,
-                     rmses[name][i,:],
+                     rmse_plot_var,
                      label=TEST_CASES[i].short_name)
         plt.axis('tight')
         plt.xlabel("month")
@@ -181,12 +232,14 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         month_weights = [month_days[months[imonth] - 1] for imonth in imonths]
         weight_norm = sum(month_weights)
         month_weights = [weight / weight_norm for weight in month_weights]
-        print(name, " has reference mean: ", sum([ref_means[name][imonth] * month_weights[imonth] for imonth in imonths]),
+        print(name, " has reference mean: ", sum([ref_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
               file=log_file)
         for i in range(case_num):
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum([test_means[name][i,imonth] * month_weights[imonth] for imonth in imonths]),
+            test_plot_var = get_2D(test_means[name][i])
+            diff_plot_var = get_2D(diff_means[name][i])
+            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum([test_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
                   file=log_file)
-            print(name, " has difference mean: ", sum([diff_means[name][i,imonth] * month_weights[imonth] for imonth in imonths]),
+            print(name, " has difference mean: ", sum([diff_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
                   file=log_file)
 
 plot_names = {
@@ -207,6 +260,11 @@ plot_names = {
     'TS': "surface temperature",
     'PSL': "sea level pressure",
     'OMEGA500': "vertical velocity at 500 mb",
+    'U10': "10 meter wind speed",
+    'RELHUM': "surface relative humidity",
+    'Q': "surface specific humidity",
+    'TMQ': "precipitable water",
+    'T': "lowest level temperature",
 }
 
 units = {
@@ -249,6 +307,11 @@ units = {
     'TAUY': r'$N/m^2$',
     'TS': r'$K$',
     'PSL': r'$Pa$',
+    'U10': r'$m/s$',
+    'RELHUM': r'%',
+    'Q': r'$g/kg$',
+    'TMQ': r'$kg/m^2$',
+    'T': r'$K$',
 }
 names = list(units.keys())
 scales = dict()
@@ -258,6 +321,13 @@ scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
+scales['Q'] = 1000.
+
+vars_3D = [
+    'RELHUM',
+    'Q',
+    'T',
+]
 
 log_plot_names = []#'AODABS', 'AODVIS', 'AODUV']
 
