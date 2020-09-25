@@ -23,7 +23,7 @@ END_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs_lat_lon"
 
-USE_PRESAER=False
+USE_PRESAER = True
 
 days = list(range(START_DAY, END_DAY+1))
 ndays = len(days)
@@ -182,18 +182,19 @@ diff_lims = {
     'T': 2.,
 }
 
-i300 = 0
+PLOT_TOP = 100.
+itop = 0
 for level in ilev:
-    if level > 300.:
+    if level > PLOT_TOP:
         break
-    i300+= 1
+    itop += 1
 
 def zonal_average(x):
-    return np.mean(x[i300:,:,:], axis=2)
+    return np.mean(x[itop:,:,:], axis=2)
 
 ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
 
-plot_ilev = ilev[i300:]
+plot_ilev = ilev[itop:]
 
 for name in varnames:
     plot_name = name
@@ -218,10 +219,10 @@ for name in varnames:
     ax = plt.gca()
     ylim = ax.get_ylim()
     ax.set_ylim([ylim[1], ylim[0]])
+    plt.ylabel("Pressure (mb)")
     ax.set_xscale('function', functions=(forward, inverse))
     ax.set_xticks([60., 30., 15., 0., -15., -30., -60.])
     ax.set_xticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
-    plt.xlabel("Pressure (mb)")
     plt.axis('tight')
     plt.colorbar()
     plt.clim(clim_val[0], clim_val[1])
@@ -239,10 +240,10 @@ for name in varnames:
         ax = plt.gca()
         ylim = ax.get_ylim()
         ax.set_ylim([ylim[1], ylim[0]])
+        plt.ylabel("Pressure (mb)")
         ax.set_xscale('function', functions=(forward, inverse))
         ax.set_xticks([60., 30., 15., 0., -15., -30., -60.])
         ax.set_xticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
-        plt.xlabel("Pressure (mb)")
         plt.axis('tight')
         plt.colorbar()
         plt.clim(clim_val[0], clim_val[1])
@@ -255,10 +256,10 @@ for name in varnames:
         ax = plt.gca()
         ylim = ax.get_ylim()
         ax.set_ylim([ylim[1], ylim[0]])
+        plt.ylabel("Pressure (mb)")
         ax.set_xscale('function', functions=(forward, inverse))
         ax.set_xticks([60., 30., 15., 0., -15., -30., -60.])
         ax.set_xticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
-        plt.xlabel("Pressure (mb)")
         plt.axis('tight')
         plt.colorbar()
         plt.clim(-clim_diff, clim_diff)

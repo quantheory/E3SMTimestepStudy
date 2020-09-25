@@ -155,6 +155,9 @@ plot_names = {
     'U10': "10 meter wind speed",
     'RELHUM': "surface relative humidity",
     'Q': "specific humidity",
+    'CLDLIQ': "lowest level cloud liquid",
+    'T': "lowest level temperature",
+    'CLOUD': "lowest level cloud fraction",
 }
 
 units = {
@@ -200,16 +203,19 @@ units = {
     'U10': r'$m/s$',
     'RELHUM': r'%',
     'Q': r'$g/kg$',
+    'CLDLIQ': r"$g/kg$",
+    'T': r'$K$',
+    'CLOUD': r'$fraction$',
 }
 varnames = list(units.keys())
 scales = dict()
 for name in varnames:
     scales[name] = 1.
-scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
 scales['Q'] = 1000.
+scales['CLDLIQ'] = 1000.
 
 diff_lims = {
     'OMEGA500': 0.05,
@@ -223,6 +229,9 @@ diff_lims = {
 vars_3D = [
     'RELHUM',
     'Q',
+    'CLDLIQ',
+    'T',
+    'CLOUD',
 ]
 
 # Possible ways to extract a 2D section start here:
@@ -234,13 +243,23 @@ def slice_at(level, x):
 
 ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
 
+# Should have this actually read from the plot_daily_means output.
+diff_global_means = {
+    'PRECL': {
+        'ALL10': 0.2612134688516978,
+        'MICRO10': 0.11923748066367695,
+        'CLUBB10MICRO10': 0.11881571958007726,
+        'CLUBBMICRO10': 0.19409486771529938,
+    },
+}
+
 for name in varnames:
     plot_name = name
     if name in plot_names:
         plot_name = plot_names[name]
 
     get_2D = identity
-    if name == "RELHUM" or name == "Q":
+    if name in ["RELHUM", "Q", "CLDLIQ", "T", "CLOUD"]:
         get_2D = partial(slice_at, nlev-1)
 
     ref_plot_var = get_2D(ref_means[name])
@@ -263,8 +282,8 @@ for name in varnames:
     ax.set_xticks([0., 90., 180., 270., 360.])
     ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
     ax.set_yscale('function', functions=(forward, inverse))
-    ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-    ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+    ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+    ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #    ax.set_yticks([60., 30., 0., -30., -60.])
 #    ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
     plt.axis('tight')
@@ -286,8 +305,8 @@ for name in varnames:
         ax.set_xticks([0., 90., 180., 270., 360.])
         ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
         ax.set_yscale('function', functions=(forward, inverse))
-        ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-        ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+        ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+        ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #        ax.set_yticks([60., 30., 0., -30., -60.])
 #        ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.axis('tight')
@@ -304,14 +323,21 @@ for name in varnames:
         ax.set_xticks([0., 90., 180., 270., 360.])
         ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
         ax.set_yscale('function', functions=(forward, inverse))
-        ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-        ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+        ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+        ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #        ax.set_yticks([60., 30., 0., -30., -60.])
 #        ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.axis('tight')
         plt.xlim([0., 360.])
         plt.colorbar()
         plt.clim(-clim_diff, clim_diff)
-        plt.title("Mean difference in {}\nfor case {} ({}, days {}-{})".format(plot_name, case_name, units[name], START_DAY, END_DAY))
+        if name in diff_global_means and case_name in diff_global_means[name]:
+            unit_string = units[name]
+            if unit_string == 'fraction':
+                unit_string = ''
+            mean_string = 'mean {:.2g}'.format(diff_global_means[name][case_name]) + unit_string
+        else:
+            mean_string = units[name]
+        plt.title("Mean difference in {}\nfor case {} ({}, days {}-{})".format(plot_name, case_name, mean_string, START_DAY, END_DAY))
         plt.savefig('{}_diff_{}{}.png'.format(name, case_name, suffix))
         plt.close()

@@ -19,7 +19,7 @@ END_AVG_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
-USE_PRESAER=False
+USE_PRESAER=True
 TROPICS_ONLY=False
 MIDLATITUDES_ONLY=False
 
@@ -247,8 +247,8 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                   file=log_file)
 
 plot_names = {
-    'LWCF': "long wave cloud forcing",
-    'SWCF': "short wave cloud forcing",
+    'LWCF': "longwave cloud forcing",
+    'SWCF': "shortwave cloud forcing",
     'PRECC': "convective precipitation",
     'PRECL': "large scale precipitation",
     'PRECT': "total precipitation",
@@ -321,7 +321,6 @@ names = list(units.keys())
 scales = dict()
 for name in names:
     scales[name] = 1.
-scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.

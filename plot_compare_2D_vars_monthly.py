@@ -220,7 +220,6 @@ varnames = list(units.keys())
 scales = dict()
 for name in varnames:
     scales[name] = 1.
-scales['SWCF'] = -1.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
@@ -248,6 +247,21 @@ def slice_at(level, x):
     return x[level,:,:]
 
 ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, months, varnames, scales)
+
+# Should have this actually read from the plot_monthly_means output.
+diff_global_means = {
+    'CLDHGH': -0.013678454026188875,
+    'CLDMED': -0.013005294090188389,
+    'CLDLOW': -0.026605262766560816,
+    'LWCF': -1.9367562045847697,
+    'PRECC': -0.20614114936695113,
+    'PRECL': 0.2874759111487673,
+    'PRECT': 0.08133476183460554,
+    'RELHUM': -0.6616496805116635,
+    'SWCF': 5.4882057901660515,
+    'TGCLDIWP': -0.00034243353479029425,
+    'TGCLDLWP': 0.0004189776935777987,
+}
 
 for name in varnames:
     plot_name = name
@@ -278,8 +292,8 @@ for name in varnames:
     ax.set_xticks([0., 90., 180., 270., 360.])
     ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
     ax.set_yscale('function', functions=(forward, inverse))
-    ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-    ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+    ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+    ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #    ax.set_yticks([60., 30., 0., -30., -60.])
 #    ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
     plt.axis('tight')
@@ -303,8 +317,8 @@ for name in varnames:
         ax.set_xticks([0., 90., 180., 270., 360.])
         ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
         ax.set_yscale('function', functions=(forward, inverse))
-        ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-        ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+        ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+        ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #        ax.set_yticks([60., 30., 0., -30., -60.])
 #        ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.axis('tight')
@@ -323,15 +337,22 @@ for name in varnames:
         ax.set_xticks([0., 90., 180., 270., 360.])
         ax.set_xticklabels(['0', '90E', '180', '90W', '0'])
         ax.set_yscale('function', functions=(forward, inverse))
-        ax.set_yticks([60., 30., 15., 0., -15., -30., -60.])
-        ax.set_yticklabels(['60N', '30N', '15N', '0', '15S', '30S', '60S'])
+        ax.set_yticks([60., 45., 30., 15., 0., -15., -30., -45., -60.])
+        ax.set_yticklabels(['60N', '45N', '30N', '15N', '0', '15S', '30S', '45S', '60S'])
 #        ax.set_yticks([60., 30., 0., -30., -60.])
 #        ax.set_yticklabels(['60N', '30N', '0', '30S', '60S'])
         plt.axis('tight')
         plt.xlim([0., 360.])
         plt.colorbar()
         plt.clim(-clim_diff, clim_diff)
-        plt.title("Mean difference in {}\nfor case {} ({}, months {}/{} - {}/{})".format(plot_name, case_name, units[name],
+        if name in diff_global_means:
+            unit_string = units[name]
+            if unit_string == 'fraction':
+                unit_string = ''
+            mean_string = 'mean {:.2g}'.format(diff_global_means[name]) + unit_string
+        else:
+            mean_string = units[name]
+        plt.title("Mean difference in {} for\ncase {} ({}, months {}/{} - {}/{})".format(plot_name, case_name, mean_string,
                                                                                          day_str(START_MONTH), day_str(START_YEAR),
                                                                                          day_str(END_MONTH), day_str(END_YEAR)))
         plt.savefig('{}_diff_{}{}.png'.format(name, case_name, suffix))
