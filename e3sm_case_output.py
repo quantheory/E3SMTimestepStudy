@@ -7,6 +7,10 @@ def day_str(day):
     "Given an integer day, return the 2-digit day string used for file names."
     return "{:02d}".format(day)
 
+def time_str(time):
+    "Given an integer time in seconds, return the 5-digit string used in file names."
+    return "{:05d}".format(time)
+
 class E3SMCaseOutput:
 
     """Class that contains information about an E3SM timestep study case.
