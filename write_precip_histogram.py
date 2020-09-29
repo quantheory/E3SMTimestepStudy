@@ -48,7 +48,7 @@ lon = first_file['lon'][:]
 area = first_file['area'][:]
 first_file.close()
 
-prec_vars = ("PRECC", "PRECL", "PRECSC", "PRECSL")
+prec_vars = ("PRECC", "PRECL", "PRECT")# "PRECSC", "PRECSL")
 
 for i in range(nmonths):
     year = years[i]
@@ -69,11 +69,11 @@ for i in range(nmonths):
     out_file.createDimension("nbins", NUM_BINS)
 
     out_file.createVariable("lat", 'f8', ("ncol",))
-    out_file.variables["lat"] = lat
+    out_file.variables["lat"][:] = lat
     out_file.createVariable("lon", 'f8', ("ncol",))
-    out_file.variables["lon"] = lon
+    out_file.variables["lon"][:] = lon
     out_file.createVariable("area", 'f8', ("ncol",))
-    out_file.variables["area"] = area
+    out_file.variables["area"][:] = area
 
     out_file.createVariable("bin_lower_bounds", 'f8', ("nbins",))
     out_file.variables["bin_lower_bounds"][0] = 0.
@@ -91,7 +91,7 @@ for i in range(nmonths):
         var_dict[num_name] = np.zeros((ncol, NUM_BINS), dtype = np.uint32)
         var_dict[amount_name] = np.zeros((ncol, NUM_BINS))
 
-    out_file.sample_num = ndays * 24
+    out_file.sample_num = np.uint32(ndays * 24)
 
     for day in range(1, ndays + 1):
         print("On day {}.".format(day))
@@ -104,7 +104,11 @@ for i in range(nmonths):
             in_file = nc4.Dataset(join(CASE_DIR, in_file_name), 'r')
 
             for varname in prec_vars:
-                var = in_file[varname][0,:]
+                if varname == "PRECT":
+                    var = in_file["PRECC"][0,:] + in_file["PRECL"][0,:]
+                else:
+                    var = in_file[varname][0,:]
+                var = var * 1000. * 86400.
                 num_name = "{}_num".format(varname)
                 amount_name = "{}_amount".format(varname)
                 for i in range(ncol):
@@ -121,7 +125,7 @@ for i in range(nmonths):
     for varname in prec_vars:
         num_name = "{}_num".format(varname)
         amount_name = "{}_amount".format(varname)
-        out_file.variables[num_name] = var_dict[num_name]
-        out_file.variables[amount_name] = var_dict[amount_name]
+        out_file.variables[num_name][:] = var_dict[num_name]
+        out_file.variables[amount_name][:] = var_dict[amount_name]
 
     out_file.close()

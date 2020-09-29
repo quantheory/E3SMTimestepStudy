@@ -18,7 +18,7 @@ TROPICS_ONLY = False
 START_YEAR = 4
 START_MONTH = 1
 END_YEAR = 4
-END_MONTH = 2
+END_MONTH = 1
 
 suffix = '_y{}m{}-y{}m{}'.format(day_str(START_YEAR),
                                  day_str(START_MONTH),
@@ -68,14 +68,14 @@ area_sum = area.sum()
 weights = area/area_sum
 first_file.close()
 
-sample_num_total = np.uint32(0)
+sample_num_total = 0
 
 prec_vars = ("PRECC", "PRECL", "PRECT")
 
-num_tots = {}
+num_avgs = {}
 amount_avgs = {}
 for var in prec_vars:
-    num_tots[var] = np.zeros((nbins,), dtype=np.uint32)
+    num_avgs[var] = np.zeros((nbins,))
     amount_avgs[var] = np.zeros((nbins,))
 
 for i in range(nmonths):
@@ -95,16 +95,17 @@ for i in range(nmonths):
         num_name = "{}_num".format(var)
         amount_name = "{}_amount".format(var)
         for j in range(ncol):
-            num_tots[var] += out_file[num_name][j,:]
+            num_avgs[var] += out_file[num_name][j,:] * weights[j]
         for j in range(ncol):
-            amount_avgs[var] += out_file[amount_name][j,:] / ncol
+            amount_avgs[var] += out_file[amount_name][j,:] * weights[j]
 
 for var in prec_vars:
+    num_avgs[var] /= sample_num_total
     amount_avgs[var] /= sample_num_total
 
 for var in prec_vars:
     # Leave out zero bin from loglog plot.
-    plt.loglog(bin_lower_bounds[1:], num_tots[var][1:] / (sample_num_total * ncol))
+    plt.loglog(bin_lower_bounds[1:], num_avgs[var][1:])
     plt.title("Frequency distribution of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
@@ -113,7 +114,7 @@ for var in prec_vars:
     plt.savefig("{}_freq{}.png".format(var, suffix))
     plt.close()
 
-    plt.loglog(bin_lower_bounds[1:], amount_avgs[var][1:])
+    plt.semilogx(bin_lower_bounds[1:], amount_avgs[var][1:])
     plt.title("Amounts of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
