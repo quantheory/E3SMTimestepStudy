@@ -243,7 +243,7 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
                   file=log_file)
 
 plot_names = {
-    'LWCF': "long wave cloud forcing",
+    'LWCF': "long-wave cloud forcing",
     'SWCF': "short wave cloud forcing",
     'PRECC': "convective precipitation",
     'PRECL': "large scale precipitation",
@@ -252,7 +252,7 @@ plot_names = {
     'TGCLDLWP': "liquid water path",
     'CLDTOT': "cloud area fraction",
     'CLDLOW': "low cloud area fraction",
-    'CLDMED': "medium cloud area fraction",
+    'CLDMED': "mid-level cloud area fraction",
     'CLDHGH': "high cloud area fraction",
     'LHFLX': "latent heat flux",
     'SHFLX': "sensible heat flux",
@@ -273,8 +273,8 @@ units = {
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
     'PRECT': r'$mm/day$',
-    'TGCLDIWP': r'$kg/m^2$',
-    'TGCLDLWP': r'$kg/m^2$',
+    'TGCLDIWP': r'$g/m^2$',
+    'TGCLDLWP': r'$g/m^2$',
     'AODABS': r'units?',
     'AODUV': r'units?',
     'AODVIS': r'units?',
@@ -317,7 +317,8 @@ names = list(units.keys())
 scales = dict()
 for name in names:
     scales[name] = 1.
-scales['SWCF'] = -1.
+scales['TGCLDIWP'] = 1000.
+scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.

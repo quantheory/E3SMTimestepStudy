@@ -27,9 +27,11 @@ START_MONTH = 3
 END_YEAR = 4
 END_MONTH = 2
 
-MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs_lat_lon"
+MONTHLY_FILE_LOC = "/p/lscratchh/santos36/timestep_monthly_avgs_lat_lon"
 
-USE_PRESAER=False
+USE_PRESAER = False
+
+PLOT_FILE_TYPE = "png"
 
 nmonths = (END_YEAR - START_YEAR) * 12 - (START_MONTH - 1) + END_MONTH
 imonths = list(range(nmonths))
@@ -153,13 +155,13 @@ plot_names = {
     'LWCF': "long wave cloud forcing",
     'SWCF': "short wave cloud forcing",
     'PRECC': "convective precipitation",
-    'PRECL': "large scale precipitation",
+    'PRECL': "large-scale precipitation",
     'PRECT': "total precipitation",
     'TGCLDIWP': "ice water path",
     'TGCLDLWP': "liquid water path",
     'CLDTOT': "cloud area fraction",
     'CLDLOW': "low cloud area fraction",
-    'CLDMED': "medium cloud area fraction",
+    'CLDMED': "mid-level cloud area fraction",
     'CLDHGH': "high cloud area fraction",
     'LHFLX': "latent heat flux",
     'SHFLX': "sensible heat flux",
@@ -170,6 +172,9 @@ plot_names = {
     'U10': "10 meter wind speed",
     'RELHUM': "surface relative humidity",
     'Q': "specific humidity",
+    'CLDLIQ': "lowest level cloud liquid",
+    'T': "lowest level temperature",
+    'CLOUD': "lowest level cloud fraction",
 }
 
 units = {
@@ -178,8 +183,8 @@ units = {
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
     'PRECT': r'$mm/day$',
-    'TGCLDIWP': r'$kg/m^2$',
-    'TGCLDLWP': r'$kg/m^2$',
+    'TGCLDIWP': r'$g/m^2$',
+    'TGCLDLWP': r'$g/m^2$',
     'AODABS': r'units?',
     'AODUV': r'units?',
     'AODVIS': r'units?',
@@ -215,15 +220,21 @@ units = {
     'U10': r'$m/s$',
     'RELHUM': r'%',
     'Q': r'$g/kg$',
+    'CLDLIQ': r"$g/kg$",
+    'T': r'$K$',
+    'CLOUD': r'$fraction$',
 }
 varnames = list(units.keys())
 scales = dict()
 for name in varnames:
     scales[name] = 1.
+scales['TGCLDIWP'] = 1000.
+scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
 scales['Q'] = 1000.
+scales['CLDLIQ'] = 1000.
 
 diff_lims = {
     'OMEGA500': 0.05,
@@ -237,6 +248,9 @@ diff_lims = {
 vars_3D = [
     'RELHUM',
     'Q',
+    'CLDLIQ',
+    'T',
+    'CLOUD',
 ]
 
 # Possible ways to extract a 2D section start here:
@@ -259,8 +273,8 @@ diff_global_means = {
     'PRECT': 0.08133476183460554,
     'RELHUM': -0.6616496805116635,
     'SWCF': 5.4882057901660515,
-    'TGCLDIWP': -0.00034243353479029425,
-    'TGCLDLWP': 0.0004189776935777987,
+    'TGCLDIWP': -0.34243353479029425,
+    'TGCLDLWP': 0.4189776935777987,
 }
 
 for name in varnames:
@@ -269,7 +283,7 @@ for name in varnames:
         plot_name = plot_names[name]
 
     get_2D = identity
-    if name == "RELHUM" or name == "Q":
+    if name in ["RELHUM", "Q", "CLDLIQ", "T", "CLOUD"]:
         get_2D = partial(slice_at, nlev-1)
 
     ref_plot_var = get_2D(ref_means[name])
@@ -303,7 +317,8 @@ for name in varnames:
     plt.title("{} for case {}\n({}, months {}/{} - {}/{})".format(plot_name, REF_CASE.short_name, units[name],
                                                                   day_str(START_MONTH), day_str(START_YEAR),
                                                                   day_str(END_MONTH), day_str(END_YEAR)))
-    plt.savefig('{}_{}{}.png'.format(name, REF_CASE.short_name, suffix))
+    plt.savefig('{}_{}{}.{}'.format(name, REF_CASE.short_name, suffix,
+                                    PLOT_FILE_TYPE))
     plt.close()
 
     for icase in range(len(TEST_CASES)):
@@ -328,7 +343,8 @@ for name in varnames:
         plt.title("{} for case {}\n({}, months {}/{} - {}/{})".format(plot_name, case_name, units[name],
                                                                       day_str(START_MONTH), day_str(START_YEAR),
                                                                       day_str(END_MONTH), day_str(END_YEAR)))
-        plt.savefig('{}_{}{}.png'.format(name, case_name, suffix))
+        plt.savefig('{}_{}{}.{}'.format(name, case_name, suffix,
+                                        PLOT_FILE_TYPE))
         plt.close()
 
         plt.pcolormesh(lon[:], lat[:], diff_plot_var, cmap=cmap)
@@ -349,11 +365,14 @@ for name in varnames:
             unit_string = units[name]
             if unit_string == 'fraction':
                 unit_string = ''
+            else:
+                unit_string = " " + unit_string
             mean_string = 'mean {:.2g}'.format(diff_global_means[name]) + unit_string
         else:
             mean_string = units[name]
         plt.title("Mean difference in {} for\ncase {} ({}, months {}/{} - {}/{})".format(plot_name, case_name, mean_string,
                                                                                          day_str(START_MONTH), day_str(START_YEAR),
                                                                                          day_str(END_MONTH), day_str(END_YEAR)))
-        plt.savefig('{}_diff_{}{}.png'.format(name, case_name, suffix))
+        plt.savefig('{}_diff_{}{}.{}'.format(name, case_name, suffix,
+                                             PLOT_FILE_TYPE))
         plt.close()

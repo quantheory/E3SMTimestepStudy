@@ -138,13 +138,13 @@ plot_names = {
     'LWCF': "long wave cloud forcing",
     'SWCF': "short wave cloud forcing",
     'PRECC': "convective precipitation",
-    'PRECL': "large scale precipitation",
+    'PRECL': "large-scale precipitation",
     'PRECT': "total precipitation",
     'TGCLDIWP': "ice water path",
     'TGCLDLWP': "liquid water path",
     'CLDTOT': "cloud area fraction",
     'CLDLOW': "low cloud area fraction",
-    'CLDMED': "medium cloud area fraction",
+    'CLDMED': "mid-level cloud area fraction",
     'CLDHGH': "high cloud area fraction",
     'LHFLX': "latent heat flux",
     'SHFLX': "sensible heat flux",
@@ -166,8 +166,8 @@ units = {
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
     'PRECT': r'$mm/day$',
-    'TGCLDIWP': r'$kg/m^2$',
-    'TGCLDLWP': r'$kg/m^2$',
+    'TGCLDIWP': r'$g/m^2$',
+    'TGCLDLWP': r'$g/m^2$',
     'AODABS': r'units?',
     'AODUV': r'units?',
     'AODVIS': r'units?',
@@ -211,6 +211,8 @@ varnames = list(units.keys())
 scales = dict()
 for name in varnames:
     scales[name] = 1.
+scales['TGCLDIWP'] = 1000.
+scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
@@ -335,6 +337,8 @@ for name in varnames:
             unit_string = units[name]
             if unit_string == 'fraction':
                 unit_string = ''
+            else:
+                unit_string = " " + unit_string
             mean_string = 'mean {:.2g}'.format(diff_global_means[name][case_name]) + unit_string
         else:
             mean_string = units[name]

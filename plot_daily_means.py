@@ -19,9 +19,9 @@ END_AVG_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
-USE_PRESAER=True
-TROPICS_ONLY=False
-MIDLATITUDES_ONLY=False
+USE_PRESAER = False
+TROPICS_ONLY = False
+MIDLATITUDES_ONLY = False
 
 assert not (TROPICS_ONLY and MIDLATITUDES_ONLY), \
     "can't do only tropics and only midlatitudes"
@@ -43,27 +43,47 @@ log_file = open("plot_daily_log{}.txt".format(suffix), 'w')
 if USE_PRESAER:
     REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
+    STYLES = {
+        "CLUBBMICRO10PA": ('indigo', '-'),
+        "ALL10PA": ('dimgrey', '-'),
+        "ZM10PA": ('g', '-'),
+        "CLUBBMICRO10ZM10PA": ('saddlebrown', '-'),
+        "CLD10PA": ('slateblue', '-'),
+    }
 else:
     REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
 #        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_ZM10S_DAY),
 #        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_rad_10s", "ALLRAD10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_300s", "ALL300", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_all_60s", "ALL60", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
+    STYLES = {
+        "DYN10": ('y', '-'),
+        "CLUBB10": ('b', '-'),
+        "MICRO10": ('r', '-'),
+        "CLUBB10MICRO10": ('maroon', '-'),
+        "CLUBBMICRO60": ('indigo', '--'),
+        "CLUBBMICRO10": ('indigo', '-'),
+        "ALL10": ('dimgrey', '-'),
+        "ALL60": ('dimgrey', '--'),
+        "ALL300": ('dimgrey', ':'),
+        "ALLRAD10": ('orange', '-'),
+    }
 
 case_num = len(TEST_CASES)
 
@@ -195,15 +215,17 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             plot_var = plt.semilogy
         else:
             plot_var = plt.plot
-        ref_plot_var = get_2D(ref_means[name])
-        plot_var(days, ref_plot_var, label=REF_CASE.short_name)
         for i in range(case_num):
             test_plot_var = get_2D(test_means[name][i])
             start_ind = TEST_CASES[i].start_day - START_DAY
             end_ind = TEST_CASES[i].end_day - START_DAY + 1
             plot_var(days[start_ind:end_ind],
                      test_plot_var[start_ind:end_ind],
-                     label=TEST_CASES[i].short_name)
+                     label=TEST_CASES[i].short_name,
+                     color=STYLES[TEST_CASES[i].short_name][0],
+                     linestyle=STYLES[TEST_CASES[i].short_name][1])
+        ref_plot_var = get_2D(ref_means[name])
+        plot_var(days, ref_plot_var, label=REF_CASE.short_name, color='k')
         plt.axis('tight')
         plt.xlabel("day")
         plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
@@ -216,7 +238,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             end_ind = TEST_CASES[i].end_day - START_DAY + 1
             plot_var(days[start_ind:end_ind],
                      diff_plot_var[start_ind:end_ind],
-                     label=TEST_CASES[i].short_name)
+                     label=TEST_CASES[i].short_name,
+                     color=STYLES[TEST_CASES[i].short_name][0],
+                     linestyle=STYLES[TEST_CASES[i].short_name][1])
         plt.axis('tight')
         plt.xlabel("day")
         plt.ylabel("Mean {} difference ({})".format(plot_name, units[name]))
@@ -229,7 +253,9 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             end_ind = TEST_CASES[i].end_day - START_DAY + 1
             plot_var(days[start_ind:end_ind],
                      rmse_plot_var[start_ind:end_ind],
-                     label=TEST_CASES[i].short_name)
+                     label=TEST_CASES[i].short_name,
+                     color=STYLES[TEST_CASES[i].short_name][0],
+                     linestyle=STYLES[TEST_CASES[i].short_name][1])
         plt.axis('tight')
         plt.xlabel("day")
         plt.ylabel("{} RMSE ({})".format(plot_name, units[name]))
@@ -250,13 +276,13 @@ plot_names = {
     'LWCF': "longwave cloud forcing",
     'SWCF': "shortwave cloud forcing",
     'PRECC': "convective precipitation",
-    'PRECL': "large scale precipitation",
+    'PRECL': "large-scale precipitation",
     'PRECT': "total precipitation",
     'TGCLDIWP': "ice water path",
     'TGCLDLWP': "liquid water path",
     'CLDTOT': "cloud area fraction",
     'CLDLOW': "low cloud area fraction",
-    'CLDMED': "medium cloud area fraction",
+    'CLDMED': "mid-level cloud area fraction",
     'CLDHGH': "high cloud area fraction",
     'LHFLX': "latent heat flux",
     'SHFLX': "sensible heat flux",
@@ -277,8 +303,8 @@ units = {
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
     'PRECT': r'$mm/day$',
-    'TGCLDIWP': r'$kg/m^2$',
-    'TGCLDLWP': r'$kg/m^2$',
+    'TGCLDIWP': r'$g/m^2$',
+    'TGCLDLWP': r'$g/m^2$',
     'AODABS': r'units?',
     'AODUV': r'units?',
     'AODVIS': r'units?',
@@ -321,6 +347,8 @@ names = list(units.keys())
 scales = dict()
 for name in names:
     scales[name] = 1.
+scales['TGCLDIWP'] = 1000.
+scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
