@@ -7,7 +7,7 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str, time_str
 
-CASE_NAME = "timestep_all_10s"
+CASE_NAME = "timestep_ctrl"
 CASE_DIR = "/p/lscratchh/santos36/ACME/{}/run".format(CASE_NAME)
 OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip/"
 NUM_BINS = 101
@@ -15,10 +15,10 @@ BINS_BOUNDS = (-2., 3.) # Bins between 10^-2 and 10^3 mm/day of precip.
 
 bins = np.logspace(BINS_BOUNDS[0], BINS_BOUNDS[1], NUM_BINS-1)
 
-START_YEAR = 4
-START_MONTH = 1
-END_YEAR = 4
-END_MONTH = 2
+START_YEAR = 3
+START_MONTH = 3
+END_YEAR = 3
+END_MONTH = 12
 
 month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 

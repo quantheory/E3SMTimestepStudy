@@ -10,15 +10,16 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str
 
-CASE_NAME = "timestep_all_10s"
+REF_CASE_NAME = "timestep_ctrl"
+TEST_CASE_NAME = "timestep_all_10s"
 OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip/"
 
 TROPICS_ONLY = False
 
-START_YEAR = 4
-START_MONTH = 1
+START_YEAR = 3
+START_MONTH = 3
 END_YEAR = 4
-END_MONTH = 1
+END_MONTH = 2
 
 suffix = '_y{}m{}-y{}m{}'.format(day_str(START_YEAR),
                                  day_str(START_MONTH),
@@ -42,14 +43,9 @@ for i in range(nmonths):
         curr_month = 1
         curr_year += 1
 
-month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-month_weights = [month_days[months[imonth] - 1] for imonth in imonths]
-weight_norm = sum(month_weights)
-month_weights = [weight / weight_norm for weight in month_weights]
-
 out_file_template = "{}.freq.{}-{}.nc"
 
-first_file_name = out_file_template.format(CASE_NAME, "00"+day_str(START_YEAR),
+first_file_name = out_file_template.format(REF_CASE_NAME, "00"+day_str(START_YEAR),
                                            day_str(START_MONTH))
 
 first_file = nc4.Dataset(join(OUTPUT_DIR, first_file_name), 'r')
@@ -62,21 +58,28 @@ area = first_file['area'][:]
 # For tropics_only cases, just use a weight of 0 for all other columns.
 if TROPICS_ONLY:
     for i in range(ncol):
-        if np.abs(lat[i]) > 30.:
+        if np.abs(lat[i]) > 20.:
             area[i] = 0.
 area_sum = area.sum()
 weights = area/area_sum
 first_file.close()
 
-sample_num_total = 0
+ref_sample_num_total = 0
+test_sample_num_total = 0
 
 prec_vars = ("PRECC", "PRECL", "PRECT")
 
-num_avgs = {}
-amount_avgs = {}
+ref_num_avgs = {}
+ref_amount_avgs = {}
 for var in prec_vars:
-    num_avgs[var] = np.zeros((nbins,))
-    amount_avgs[var] = np.zeros((nbins,))
+    ref_num_avgs[var] = np.zeros((nbins,))
+    ref_amount_avgs[var] = np.zeros((nbins,))
+
+test_num_avgs = {}
+test_amount_avgs = {}
+for var in prec_vars:
+    test_num_avgs[var] = np.zeros((nbins,))
+    test_amount_avgs[var] = np.zeros((nbins,))
 
 for i in range(nmonths):
     year = years[i]
@@ -86,26 +89,42 @@ for i in range(nmonths):
 
     print("On year {}, month {}.".format(year, month))
 
-    out_file_name = out_file_template.format(CASE_NAME, year_string, month_string)
+    out_file_name = out_file_template.format(REF_CASE_NAME, year_string, month_string)
     out_file = nc4.Dataset(join(OUTPUT_DIR, out_file_name), 'r')
 
-    sample_num_total += out_file.sample_num
+    ref_sample_num_total += out_file.sample_num
 
     for var in prec_vars:
         num_name = "{}_num".format(var)
         amount_name = "{}_amount".format(var)
         for j in range(ncol):
-            num_avgs[var] += out_file[num_name][j,:] * weights[j]
+            ref_num_avgs[var] += out_file[num_name][j,:] * weights[j]
         for j in range(ncol):
-            amount_avgs[var] += out_file[amount_name][j,:] * weights[j]
+            ref_amount_avgs[var] += out_file[amount_name][j,:] * weights[j]
+
+    out_file_name = out_file_template.format(TEST_CASE_NAME, year_string, month_string)
+    out_file = nc4.Dataset(join(OUTPUT_DIR, out_file_name), 'r')
+
+    test_sample_num_total += out_file.sample_num
+
+    for var in prec_vars:
+        num_name = "{}_num".format(var)
+        amount_name = "{}_amount".format(var)
+        for j in range(ncol):
+            test_num_avgs[var] += out_file[num_name][j,:] * weights[j]
+        for j in range(ncol):
+            test_amount_avgs[var] += out_file[amount_name][j,:] * weights[j]
 
 for var in prec_vars:
-    num_avgs[var] /= sample_num_total
-    amount_avgs[var] /= sample_num_total
+    ref_num_avgs[var] /= ref_sample_num_total
+    ref_amount_avgs[var] /= ref_sample_num_total
+    test_num_avgs[var] /= test_sample_num_total
+    test_amount_avgs[var] /= test_sample_num_total
 
 for var in prec_vars:
     # Leave out zero bin from loglog plot.
-    plt.loglog(bin_lower_bounds[1:], num_avgs[var][1:])
+    plt.loglog(bin_lower_bounds[1:], ref_num_avgs[var][1:], 'k')
+    plt.loglog(bin_lower_bounds[1:], test_num_avgs[var][1:], 'r')
     plt.title("Frequency distribution of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
@@ -114,7 +133,8 @@ for var in prec_vars:
     plt.savefig("{}_freq{}.png".format(var, suffix))
     plt.close()
 
-    plt.semilogx(bin_lower_bounds[1:], amount_avgs[var][1:])
+    plt.semilogx(bin_lower_bounds[1:], ref_amount_avgs[var][1:], 'k')
+    plt.semilogx(bin_lower_bounds[1:], test_amount_avgs[var][1:], 'r')
     plt.title("Amounts of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
