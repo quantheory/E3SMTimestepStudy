@@ -52,6 +52,7 @@ first_file = nc4.Dataset(join(OUTPUT_DIR, first_file_name), 'r')
 ncol = len(first_file.dimensions['ncol'])
 nbins = len(first_file.dimensions['nbins'])
 bin_lower_bounds = first_file['bin_lower_bounds'][:]
+bin_width = np.log(bin_lower_bounds[2] / bin_lower_bounds[1])
 lat = first_file['lat'][:]
 lon = first_file['lon'][:]
 area = first_file['area'][:]
@@ -128,17 +129,17 @@ for var in prec_vars:
     plt.title("Frequency distribution of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
-    plt.xlabel("Precipitation amount (mm/day)")
+    plt.xlabel("Precipitation intensity (mm/day)")
     plt.ylabel("fraction")
     plt.savefig("{}_freq{}.png".format(var, suffix))
     plt.close()
 
-    plt.semilogx(bin_lower_bounds[1:], ref_amount_avgs[var][1:], 'k')
-    plt.semilogx(bin_lower_bounds[1:], test_amount_avgs[var][1:], 'r')
+    plt.semilogx(bin_lower_bounds[1:], ref_amount_avgs[var][1:] / bin_width, 'k')
+    plt.semilogx(bin_lower_bounds[1:], test_amount_avgs[var][1:] / bin_width, 'r')
     plt.title("Amounts of precipitation ({}/{}-{}/{})".format(
         day_str(START_MONTH), day_str(START_YEAR),
         day_str(END_MONTH), day_str(END_YEAR)))
-    plt.xlabel("Precipitation amount (mm/day)")
-    plt.ylabel("Average amount (mm/day)")
+    plt.xlabel("Precipitation intensity (mm/day)")
+    plt.ylabel("Average precipitation amount (mm/day)")
     plt.savefig("{}_amount{}.png".format(var, suffix))
     plt.close()

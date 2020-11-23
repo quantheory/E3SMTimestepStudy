@@ -10,18 +10,30 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str
 
-REF_CASE_NAME = "timestep_all_300s"
-TEST_CASE_NAMES = ["timestep_CLUBB_MG2_10s", "timestep_all_60s"]
-SHORT_TEST_CASE_NAMES = ["CLUBBMICRO10", "ALL60"]
 OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip/"
 
 USE_PRESAER = False
-TROPICS_ONLY = True
+TROPICS_ONLY = False
 
 START_DAY = 3
 END_DAY = 15
 
 if USE_PRESAER:
+    REF_CASE_NAME = "timestep_presaer_ctrl"
+    TEST_CASE_NAMES = [
+        "timestep_presaer_ZM_10s",
+        "timestep_presaer_CLUBB_MG2_10s",
+        "timestep_presaer_CLUBB_MG2_10s_ZM_10s",
+        "timestep_presaer_cld_10s",
+        "timestep_presaer_all_10s",
+    ]
+    SHORT_TEST_CASE_NAMES = [
+        "ZM10PA",
+        "CLUBBMICRO10PA",
+        "CLUBBMICRO10ZM10PA",
+        "CLD10PA",
+        "ALL10PA",
+    ]
     STYLES = {
         "CLUBBMICRO10PA": ('indigo', '-'),
         "ALL10PA": ('dimgrey', '-'),
@@ -30,11 +42,42 @@ if USE_PRESAER:
         "CLD10PA": ('slateblue', '-'),
     }
 else:
+    REF_CASE_NAME = "timestep_ctrl"
+    TEST_CASE_NAMES = [
+        "timestep_dyn_10s",
+        "timestep_CLUBB_10s",
+        "timestep_MG2_10s",
+        "timestep_CLUBB_10s_MG2_10s",
+        "timestep_CLUBB_MG2_Strang",
+        "timestep_CLUBB_MG2_Strang_60s",
+        "timestep_CLUBB_MG2_60s",
+        "timestep_CLUBB_MG2_10s",
+        "timestep_all_10s",
+        "timestep_all_60s",
+        "timestep_all_300s",
+        "timestep_all_rad_10s",
+    ]
+    SHORT_TEST_CASE_NAMES = [
+        "DYN10",
+        "CLUBB10",
+        "MICRO10",
+        "CLUBB10MICRO10",
+        "CLUBBMICROSTR",
+        "CLUBBMICROSTR60",
+        "CLUBBMICRO60",
+        "CLUBBMICRO10",
+        "ALL10",
+        "ALL60",
+        "ALL300",
+        "ALLRAD10",
+    ]
     STYLES = {
         "DYN10": ('y', '-'),
         "CLUBB10": ('b', '-'),
         "MICRO10": ('r', '-'),
         "CLUBB10MICRO10": ('maroon', '-'),
+        "CLUBBMICROSTR": ('m', '-'),
+        "CLUBBMICROSTR60": ('m', '--'),
         "CLUBBMICRO60": ('indigo', '--'),
         "CLUBBMICRO10": ('indigo', '-'),
         "ALL10": ('dimgrey', '-'),
@@ -47,6 +90,8 @@ num_tests = len(TEST_CASE_NAMES)
 
 suffix = '_d{}-d{}'.format(day_str(START_DAY), day_str(END_DAY))
 
+if USE_PRESAER:
+    suffix += '_presaer'
 if TROPICS_ONLY:
     suffix += '_tropics'
 
@@ -59,6 +104,7 @@ first_file = nc4.Dataset(join(OUTPUT_DIR, first_file_name), 'r')
 ncol = len(first_file.dimensions['ncol'])
 nbins = len(first_file.dimensions['nbins'])
 bin_lower_bounds = first_file['bin_lower_bounds'][:]
+bin_width = np.log(bin_lower_bounds[2] / bin_lower_bounds[1])
 lat = first_file['lat'][:]
 lon = first_file['lon'][:]
 area = first_file['area'][:]
@@ -134,19 +180,19 @@ for var in prec_vars:
                    linestyle=STYLES[SHORT_TEST_CASE_NAMES[i]][1])
     plt.title("Frequency distribution of precipitation (days {}-{})".format(
         day_str(START_DAY), day_str(END_DAY)))
-    plt.xlabel("Precipitation amount (mm/day)")
+    plt.xlabel("Precipitation intensity (mm/day)")
     plt.ylabel("fraction")
     plt.savefig("{}_freq{}.png".format(var, suffix))
     plt.close()
 
-    plt.semilogx(bin_lower_bounds[1:], ref_amount_avgs[var][1:], 'k')
+    plt.semilogx(bin_lower_bounds[1:], ref_amount_avgs[var][1:] / bin_width, 'k')
     for i in range(num_tests):
-        plt.semilogx(bin_lower_bounds[1:], test_amount_avgs[i][var][1:],
+        plt.semilogx(bin_lower_bounds[1:], test_amount_avgs[i][var][1:] / bin_width,
                      color=STYLES[SHORT_TEST_CASE_NAMES[i]][0],
                      linestyle=STYLES[SHORT_TEST_CASE_NAMES[i]][1])
     plt.title("Amounts of precipitation (days {}-{})".format(
         day_str(START_DAY), day_str(END_DAY)))
-    plt.xlabel("Precipitation amount (mm/day)")
-    plt.ylabel("Average amount (mm/day)")
+    plt.xlabel("Precipitation intensity (mm/day)")
+    plt.ylabel("Average precipitation amount (mm/day)")
     plt.savefig("{}_amount{}.png".format(var, suffix))
     plt.close()

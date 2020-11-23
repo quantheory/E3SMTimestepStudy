@@ -16,7 +16,7 @@ BINS_BOUNDS = (-2., 3.) # Bins between 10^-2 and 10^3 mm/day of precip.
 bins = np.logspace(BINS_BOUNDS[0], BINS_BOUNDS[1], NUM_BINS-1)
 
 START_YEAR = 3
-START_MONTH = 3
+START_MONTH = 8
 END_YEAR = 3
 END_MONTH = 12
 

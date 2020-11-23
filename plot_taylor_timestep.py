@@ -56,6 +56,7 @@ ax = taylordiag._ax
 case_colors = {
     'timestep_all_10s': 'k',
     'timestep_ctrl_ne16': 'r',
+    'timestep_ctrl_y04-y07': 'g',
 }
 
 for season in parameter.seasons:
@@ -63,7 +64,7 @@ for season in parameter.seasons:
     # one figure.
     print('Season: {}'.format(season))
 
-    for test_name in ('timestep_all_10s', 'timestep_ctrl_ne16'):
+    for test_name in ('timestep_all_10s', 'timestep_ctrl_ne16', 'timestep_ctrl_y04-y07'):
         parameter.test_name = test_name
         test_data = utils.dataset.Dataset(parameter, test=True)
 

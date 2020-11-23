@@ -22,8 +22,8 @@ def inverse(a):
     a = np.arcsin(a)
     return np.rad2deg(a)
 
-START_YEAR = 1
-START_MONTH = 3
+START_YEAR = 3
+START_MONTH = 12
 END_YEAR = 4
 END_MONTH = 2
 

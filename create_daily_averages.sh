@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CASE_NAMES="timestep_all_10s timestep_CLUBB_10s timestep_CLUBB_MG2_10s timestep_MG2_10s timestep_dyn_10s timestep_CLUBB_MG2_60s"
+CASE_NAMES="timestep_CLUBB_MG2_Strang_60s"
 DAYS="01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30"
 OUTPUT_DIR=/p/lscratchh/santos36/timestep_daily_avgs
 
