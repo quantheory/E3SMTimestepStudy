@@ -1,0 +1,538 @@
+diff --git a/components/cam/bld/build-namelist b/components/cam/bld/build-namelist
+index fb28d0411e..c6f2e47187 100755
+--- a/components/cam/bld/build-namelist
++++ b/components/cam/bld/build-namelist
+@@ -3366,6 +3366,7 @@ add_default($nl,'fix_g1_err_ndrop','val'=>'.false.');
+ 
+ # Deep convection scheme
+ add_default($nl, 'deep_scheme');
++add_default($nl, 'deep_num_steps');
+ 
+ # Radiation scheme
+ add_default($nl, 'radiation_scheme');
+diff --git a/components/cam/bld/namelist_files/namelist_defaults_cam.xml b/components/cam/bld/namelist_files/namelist_defaults_cam.xml
+index d2282e9ff3..8611b71f79 100644
+--- a/components/cam/bld/namelist_files/namelist_defaults_cam.xml
++++ b/components/cam/bld/namelist_files/namelist_defaults_cam.xml
+@@ -1016,6 +1016,8 @@
+ <deep_scheme clubb_do_deep="1" >CLUBB_SGS</deep_scheme>
+ <deep_scheme unicon="1"        >UNICON   </deep_scheme>
+ 
++<deep_num_steps>1</deep_num_steps>
++
+ <!-- PBL scheme -->
+ <eddy_scheme pbl="uw"             >diag_TKE </eddy_scheme>
+ <eddy_scheme pbl="hb"             >HB       </eddy_scheme>
+diff --git a/components/cam/bld/namelist_files/namelist_definition.xml b/components/cam/bld/namelist_files/namelist_definition.xml
+index 12029f66be..d0adb19a9d 100644
+--- a/components/cam/bld/namelist_files/namelist_definition.xml
++++ b/components/cam/bld/namelist_files/namelist_definition.xml
+@@ -2076,6 +2076,14 @@ This default logical is set in cospsimulator_intr.F90
+ Default: FALSE
+ </entry>
+ 
++<!-- Deep convection -->
++
++<entry id="deep_num_steps" type="integer" category="conv"
++       group="phys_ctl_nl" valid_values="" >
++Number of deep convection substeps.
++Default: 1
++</entry>
++
+ <!-- Cloud Macro/Micro-physics -->
+ 
+ <entry id="cld_macmic_num_steps" type="integer" category="conv"
+diff --git a/components/cam/src/physics/cam/phys_control.F90 b/components/cam/src/physics/cam/phys_control.F90
+index bb61a6d152..ef24bc161c 100644
+--- a/components/cam/src/physics/cam/phys_control.F90
++++ b/components/cam/src/physics/cam/phys_control.F90
+@@ -112,6 +112,8 @@ logical, public, protected :: print_fixer_message  = .false.     ! switch on err
+ integer, public, protected :: ieflx_opt = 0
+ logical, public, protected :: l_ieflx_fix = .false.
+ 
++! Deep convection substeps
++integer           :: deep_num_steps = 1
+ ! Macro/micro-physics co-substeps
+ integer           :: cld_macmic_num_steps = 1
+ 
+@@ -184,7 +186,7 @@ subroutine phys_ctl_readnl(nlfile)
+       use_qqflx_fixer, & 
+       print_fixer_message, & 
+       use_hetfrz_classnuc, use_gw_oro, use_gw_front, use_gw_convect, &
+-      cld_macmic_num_steps, micro_do_icesupersat, &
++      deep_num_steps, cld_macmic_num_steps, micro_do_icesupersat, &
+       fix_g1_err_ndrop, ssalt_tuning, resus_fix, convproc_do_aer, &
+       convproc_do_gas, convproc_method_activate, liqcf_fix, regen_fix, demott_ice_nuc, pergro_mods, pergro_test_active, &
+       mam_amicphys_optaa, n_so4_monolayers_pcage,micro_mg_accre_enhan_fac, &
+@@ -270,6 +272,7 @@ subroutine phys_ctl_readnl(nlfile)
+    call mpibcast(l_st_mac,                        1 , mpilog,  0, mpicom)
+    call mpibcast(l_st_mic,                        1 , mpilog,  0, mpicom)
+    call mpibcast(l_rad,                           1 , mpilog,  0, mpicom)
++   call mpibcast(deep_num_steps,                  1 , mpiint,  0, mpicom)
+    call mpibcast(cld_macmic_num_steps,            1 , mpiint,  0, mpicom)
+    call mpibcast(prc_coef1,                       1 , mpir8,   0, mpicom)
+    call mpibcast(prc_exp,                         1 , mpir8,   0, mpicom)
+@@ -338,6 +341,14 @@ subroutine phys_ctl_readnl(nlfile)
+       endif
+    endif
+ 
++   ! Deep convection substepping support.
++   if (deep_num_steps > 1) then
++      if (deep_scheme /= "ZM") then
++         call endrun ("Setting deep_num_steps > 1 is only supported with the &
++              &ZM deep convection scheme.")
++      end if
++   end if
++
+    ! Macro/micro co-substepping support.
+    if (cld_macmic_num_steps > 1) then
+       if (microp_scheme /= "MG" .or. (macrop_scheme /= "park" .and. macrop_scheme /= "CLUBB_SGS")) then
+@@ -415,7 +426,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, &
+                         use_mass_borrower_out, & 
+                         l_ieflx_fix_out, & 
+                         use_qqflx_fixer_out, & 
+-                        print_fixer_message_out, & 
++                        print_fixer_message_out, deep_num_steps_out, &
+                         cld_macmic_num_steps_out, micro_do_icesupersat_out, &
+                         fix_g1_err_ndrop_out, ssalt_tuning_out,resus_fix_out,convproc_do_aer_out,  &
+                         convproc_do_gas_out, convproc_method_activate_out, mam_amicphys_optaa_out, n_so4_monolayers_pcage_out, &
+@@ -492,6 +503,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, &
+    logical,           intent(out), optional :: l_rad_out
+    logical,           intent(out), optional :: mg_prc_coeff_fix_out
+    logical,           intent(out), optional :: rrtmg_temp_fix_out
++   integer,           intent(out), optional :: deep_num_steps_out
+    integer,           intent(out), optional :: cld_macmic_num_steps_out
+    real(r8),          intent(out), optional :: prc_coef1_out
+    real(r8),          intent(out), optional :: prc_exp_out
+@@ -555,6 +567,7 @@ subroutine phys_getopts(deep_scheme_out, shallow_scheme_out, eddy_scheme_out, &
+    if ( present(l_st_mac_out            ) ) l_st_mac_out          = l_st_mac
+    if ( present(l_st_mic_out            ) ) l_st_mic_out          = l_st_mic
+    if ( present(l_rad_out               ) ) l_rad_out             = l_rad
++   if ( present(deep_num_steps_out      ) ) deep_num_steps_out    = deep_num_steps
+    if ( present(cld_macmic_num_steps_out) ) cld_macmic_num_steps_out = cld_macmic_num_steps
+    if ( present(prc_coef1_out           ) ) prc_coef1_out            = prc_coef1
+    if ( present(prc_exp_out             ) ) prc_exp_out              = prc_exp
+diff --git a/components/cam/src/physics/cam/physpkg.F90 b/components/cam/src/physics/cam/physpkg.F90
+index 0e2baa9157..68cebfff38 100644
+--- a/components/cam/src/physics/cam/physpkg.F90
++++ b/components/cam/src/physics/cam/physpkg.F90
+@@ -66,6 +66,9 @@ module physpkg
+   integer ::  prec_sh_idx        = 0
+   integer ::  snow_sh_idx        = 0
+   integer ::  rice2_idx          = 0
++  integer ::  rprddp_idx         = 0
++  integer ::  nevapr_dpcu_idx    = 0
++  integer ::  ttend_dp_idx       = 0
+   integer :: species_class(pcnst)  = -1 !BSINGH: Moved from modal_aero_data.F90 as it is being used in second call to zm deep convection scheme (convect_deep_tend_2)
+ 
+   save
+@@ -880,6 +883,10 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
+     prec_sh_idx  = pbuf_get_index('PREC_SH')
+     snow_sh_idx  = pbuf_get_index('SNOW_SH')
+ 
++    rprddp_idx  = pbuf_get_index('RPRDDP')
++    nevapr_dpcu_idx  = pbuf_get_index('NEVAPR_DPCU')
++    ttend_dp_idx  = pbuf_get_index('TTEND_DP')
++
+     if (shallow_scheme .eq. 'UNICON') then
+         rice2_idx    = pbuf_get_index('rice2')
+     endif
+@@ -1851,6 +1858,8 @@ subroutine tphysbc (ztodt,               &
+     use subcol,          only: subcol_gen, subcol_ptend_avg
+     use subcol_utils,    only: subcol_ptend_copy, is_subcol_on
+     use phys_control,    only: use_qqflx_fixer, use_mass_borrower
++    use zm_average_gathered, only: zm_gath_avg, zm_gath_avg_init, &
++                                   zm_gath_avg_accum, zm_gath_avg_output
+ 
+     implicit none
+ 
+@@ -1939,6 +1948,11 @@ subroutine tphysbc (ztodt,               &
+ 
+     real(r8),pointer :: rice2(:)                  ! reserved ice from UNICON [m/s]
+ 
++    ! Variables from deep convection used by wet deposition or gravity waves
++    real(r8),pointer :: rprddp(:,:)
++    real(r8),pointer :: nevapr_dpcu(:,:)
++    real(r8),pointer :: ttend_dp(:,:)
++
+     ! carma precipitation variables
+     real(r8) :: prec_sed_carma(pcols)          ! total precip from cloud sedimentation (CARMA)
+     real(r8) :: snow_sed_carma(pcols)          ! snow from cloud ice sedimentation (CARMA)
+@@ -1961,6 +1975,21 @@ subroutine tphysbc (ztodt,               &
+     real(r8) :: prec_sed_macmic(pcols)
+     real(r8) :: snow_sed_macmic(pcols)
+ 
++    real(r8) :: cmfmc_accum(pcols, pverp)
++    real(r8) :: cmfcme_accum(pcols, pver)
++    real(r8) :: dlf_accum(pcols, pver)
++    real(r8) :: pflx_accum(pcols, pverp)
++    real(r8) :: zdu_accum(pcols, pver)
++
++    real(r8) :: prec_dp_accum(pcols)
++    real(r8) :: snow_dp_accum(pcols)
++    real(r8) :: rprddp_accum(pcols,pver)
++    real(r8) :: nevapr_dpcu_accum(pcols,pver)
++    real(r8) :: ttend_dp_accum(pcols,pver)
++    real(r8) :: rliq_accum(pcols)
++
++    type(zm_gath_avg) :: zga
++
+     ! energy checking variables
+     real(r8) :: zero(pcols)                    ! array of zeros
+     real(r8) :: zero_sc(pcols*psubcols)        ! array of zeros
+@@ -2274,26 +2303,6 @@ if (l_dry_adj) then
+     call t_stopf('dry_adjustment')
+ 
+ end if
+-    !
+-    !===================================================
+-    ! Moist convection
+-    !===================================================
+-    call t_startf('moist_convection')
+-    !
+-    ! Since the PBL doesn't pass constituent perturbations, they
+-    ! are zeroed here for input to the moist convection routine
+-    !
+-    call t_startf ('convect_deep_tend')
+-    call convect_deep_tend(  &
+-         cmfmc,      cmfcme,             &
+-         dlf,        pflx,    zdu,       &
+-         rliq,    &
+-         ztodt,   &
+-         state,   ptend, cam_in%landfrac, pbuf, mu, eu, du, md, ed, dp,   &
+-         dsubcld, jt, maxg, ideep, lengath) 
+-    call t_stopf('convect_deep_tend')
+-
+-    call physics_update(state, ptend, ztodt, tend)
+ 
+     call pbuf_get_field(pbuf, prec_dp_idx, prec_dp )
+     call pbuf_get_field(pbuf, snow_dp_idx, snow_dp )
+@@ -2307,32 +2316,13 @@ end if
+     call pbuf_get_field(pbuf, snow_pcw_idx, snow_pcw )
+ 
+     if (use_subcol_microp) then
+-      call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
+-      call pbuf_get_field(pbuf, snow_str_idx, snow_str_sc, col_type=col_type_subcol)
++       call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
++       call pbuf_get_field(pbuf, snow_str_idx, snow_str_sc, col_type=col_type_subcol)
+     end if
+ 
+-    ! Check energy integrals, including "reserved liquid"
+-    flx_cnd(:ncol) = prec_dp(:ncol) + rliq(:ncol)
+-    call check_energy_chng(state, tend, "convect_deep", nstep, ztodt, zero, flx_cnd, snow_dp, zero)
+-
+-    !
+-    ! Call Hack (1994) convection scheme to deal with shallow/mid-level convection
+-    !
+-    call t_startf ('convect_shallow_tend')
+-
+-    call convect_shallow_tend (ztodt   , cmfmc,  cmfmc2  ,&
+-         dlf        , dlf2   ,  rliq   , rliq2, & 
+-         state      , ptend  ,  pbuf   , sh_e_ed_ratio   , sgh, sgh30, cam_in) 
+-    call t_stopf ('convect_shallow_tend')
+-
+-    call physics_update(state, ptend, ztodt, tend)
+-
+-    flx_cnd(:ncol) = prec_sh(:ncol) + rliq2(:ncol)
+-    call check_energy_chng(state, tend, "convect_shallow", nstep, ztodt, zero, flx_cnd, snow_sh, zero)
+-
+-    call check_tracers_chng(state, tracerint, "convect_shallow", nstep, ztodt, zero_tracers)
+-
+-    call t_stopf('moist_convection')
++    call pbuf_get_field(pbuf, rprddp_idx, rprddp)
++    call pbuf_get_field(pbuf, nevapr_dpcu_idx, nevapr_dpcu)
++    call pbuf_get_field(pbuf, ttend_dp_idx, ttend_dp)
+ 
+ if (l_tracer_aero) then
+ 
+@@ -2406,7 +2396,68 @@ end if
+        prec_pcw_macmic = 0._r8
+        snow_pcw_macmic = 0._r8
+ 
++       cmfmc_accum = 0._r8
++       cmfcme_accum = 0._r8
++       dlf_accum = 0._r8
++       pflx_accum = 0._r8
++       zdu_accum = 0._r8
++
++       prec_dp_accum = 0._r8
++       snow_dp_accum = 0._r8
++       rprddp_accum = 0._r8
++       nevapr_dpcu_accum = 0._r8
++       ttend_dp_accum = 0._r8
++       rliq_accum = 0._r8
++
++       call zm_gath_avg_init(state%pdel, zga)
++
+        do macmic_it = 1, cld_macmic_num_steps
++          !
++          !===================================================
++          ! Moist convection
++          !===================================================
++          call t_startf('moist_convection')
++
++          !
++          ! Since the PBL doesn't pass constituent perturbations, they
++          ! are zeroed here for input to the moist convection routine
++          !
++          call t_startf ('convect_deep_tend')
++          call convect_deep_tend(  &
++               cmfmc,      cmfcme,             &
++               dlf,        pflx,    zdu,       &
++               rliq,    &
++               cld_macmic_ztodt,   &
++               state,   ptend, cam_in%landfrac, pbuf, mu, eu, du, md, ed, dp,   &
++               dsubcld, jt, maxg, ideep, lengath) 
++          call t_stopf('convect_deep_tend')
++
++          call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
++          call physics_update(state, ptend, ztodt, tend)
++
++          ! Check energy integrals, including "reserved liquid"
++          flx_cnd(:ncol) = prec_dp(:ncol) + rliq(:ncol)
++          call check_energy_chng(state, tend, "convect_deep", nstep, ztodt, zero, &
++               flx_cnd/cld_macmic_num_steps, snow_dp/cld_macmic_num_steps, zero)
++
++          !
++          ! Call Hack (1994) convection scheme to deal with shallow/mid-level convection
++          !
++          call t_startf ('convect_shallow_tend')
++
++          call convect_shallow_tend (ztodt   , cmfmc,  cmfmc2  ,&
++               dlf        , dlf2   ,  rliq   , rliq2, & 
++               state      , ptend  ,  pbuf   , sh_e_ed_ratio   , sgh, sgh30, cam_in) 
++          call t_stopf ('convect_shallow_tend')
++
++          call physics_update(state, ptend, ztodt, tend)
++
++          flx_cnd(:ncol) = prec_sh(:ncol) + rliq2(:ncol)
++          call check_energy_chng(state, tend, "convect_shallow", nstep, ztodt, zero, flx_cnd, snow_sh, zero)
++
++          call check_tracers_chng(state, tracerint, "convect_shallow", nstep, ztodt, zero_tracers)
++
++          call t_stopf('moist_convection')
+ 
+         if (l_st_mac) then
+ 
+@@ -2588,19 +2639,53 @@ end if
+ 
+         end if ! l_st_mic
+ 
++        call zm_gath_avg_accum( &
++             lengath, ideep, mu, eu, du, &
++             md, ed, dp, dsubcld, jt, &
++             maxg, zga)
++
++        cmfmc_accum(:ncol,:) = cmfmc_accum(:ncol,:) + cmfmc(:ncol,:)
++        cmfcme_accum(:ncol,:) = cmfcme_accum(:ncol,:) + cmfcme(:ncol,:)
++        dlf_accum(:ncol,:) = dlf_accum(:ncol,:) + dlf(:ncol,:)
++        pflx_accum(:ncol,:) = pflx_accum(:ncol,:) + pflx(:ncol,:)
++        zdu_accum(:ncol,:) = zdu_accum(:ncol,:) + zdu(:ncol,:)
++
+           prec_sed_macmic(:ncol) = prec_sed_macmic(:ncol) + prec_sed(:ncol)
+           snow_sed_macmic(:ncol) = snow_sed_macmic(:ncol) + snow_sed(:ncol)
+           prec_pcw_macmic(:ncol) = prec_pcw_macmic(:ncol) + prec_pcw(:ncol)
+           snow_pcw_macmic(:ncol) = snow_pcw_macmic(:ncol) + snow_pcw(:ncol)
++          prec_dp_accum(:ncol) = prec_dp_accum(:ncol) + prec_dp(:ncol)
++          snow_dp_accum(:ncol) = snow_dp_accum(:ncol) + snow_dp(:ncol)
++          rprddp_accum(:ncol,:) = rprddp_accum(:ncol,:) + rprddp(:ncol,:)
++          nevapr_dpcu_accum(:ncol,:) = nevapr_dpcu_accum(:ncol,:) + nevapr_dpcu(:ncol,:)
++          ttend_dp_accum(:ncol,:) = ttend_dp_accum(:ncol,:) + ttend_dp(:ncol,:)
++          rliq_accum(:ncol) = rliq_accum(:ncol) + rliq(:ncol)
+ 
+        end do ! end substepping over macrophysics/microphysics
+ 
++       call zm_gath_avg_output( &
++            zga, lengath, ideep, mu, eu, &
++            du, md, ed, dp, dsubcld, &
++            jt, maxg)
++
++       cmfmc(:ncol,:) = cmfmc_accum(:ncol,:) / cld_macmic_num_steps
++       cmfcme(:ncol,:) = cmfcme_accum(:ncol,:) / cld_macmic_num_steps
++       dlf(:ncol,:) = dlf_accum(:ncol,:) / cld_macmic_num_steps
++       pflx(:ncol,:) = pflx_accum(:ncol,:) / cld_macmic_num_steps
++       zdu(:ncol,:) = zdu_accum(:ncol,:) / cld_macmic_num_steps
++
+        prec_sed(:ncol) = prec_sed_macmic(:ncol)/cld_macmic_num_steps
+        snow_sed(:ncol) = snow_sed_macmic(:ncol)/cld_macmic_num_steps
+        prec_pcw(:ncol) = prec_pcw_macmic(:ncol)/cld_macmic_num_steps
+        snow_pcw(:ncol) = snow_pcw_macmic(:ncol)/cld_macmic_num_steps
+        prec_str(:ncol) = prec_pcw(:ncol) + prec_sed(:ncol)
+        snow_str(:ncol) = snow_pcw(:ncol) + snow_sed(:ncol)
++       prec_dp(:ncol) = prec_dp_accum(:ncol) / cld_macmic_num_steps
++       snow_dp(:ncol) = snow_dp_accum(:ncol) / cld_macmic_num_steps
++       rprddp(:ncol,:) = rprddp_accum(:ncol,:) / cld_macmic_num_steps
++       nevapr_dpcu(:ncol,:) = nevapr_dpcu_accum(:ncol,:) / cld_macmic_num_steps
++       ttend_dp(:ncol,:) = ttend_dp_accum(:ncol,:) / cld_macmic_num_steps
++       rliq(:ncol) = rliq_accum(:ncol) / cld_macmic_num_steps
+ 
+      end if !microp_scheme
+ 
+diff --git a/components/cam/src/physics/cam/zm_average_gathered.F90 b/components/cam/src/physics/cam/zm_average_gathered.F90
+new file mode 100644
+index 0000000000..b9a7427cbc
+--- /dev/null
++++ b/components/cam/src/physics/cam/zm_average_gathered.F90
+@@ -0,0 +1,162 @@
++module zm_average_gathered
++
++  use shr_kind_mod, only: r8 => shr_kind_r8
++#ifndef TEST_MODE
++  use ppgrid, only: pcols, pver, pverp
++  use shr_assert_mod, only: shr_assert, shr_assert_in_domain
++#endif
++
++  implicit none
++  private
++
++  public zm_gath_avg
++  public zm_gath_avg_init
++  public zm_gath_avg_accum
++  public zm_gath_avg_output
++
++#ifdef TEST_MODE
++  ! For testing
++  integer, parameter, public :: pcols = 8
++  integer, parameter, public :: pver = 8
++  integer, parameter, public :: pverp = pver + 1
++#endif
++
++  type zm_gath_avg
++     ! How often has each column had convection?
++     integer :: con_count(pcols)
++     ! How many substeps have occurred?
++     integer :: step_count
++     ! Un-gathered fields to average and gather
++     real(r8) :: mu(pcols, pver)
++     real(r8) :: eu(pcols, pver)
++     real(r8) :: du(pcols, pver)
++     real(r8) :: md(pcols, pver)
++     real(r8) :: ed(pcols, pver)
++     ! layer thickness
++     real(r8) :: dp(pcols, pver)
++     ! top and bottom of convective region
++     integer :: jt(pcols)
++     integer :: maxg(pcols)
++  end type zm_gath_avg
++
++contains
++
++  subroutine zm_gath_avg_init(pdel, zga)
++    real(r8), intent(in) :: pdel(pcols, pver)
++    type(zm_gath_avg), intent(out) :: zga
++
++    zga%con_count = 0
++    zga%step_count = 0
++
++    zga%mu = 0.
++    zga%eu = 0.
++    zga%du = 0.
++    zga%md = 0.
++    zga%ed = 0.
++
++    zga%dp = 0.01 * pdel
++
++    zga%jt = pver
++    zga%maxg = 1
++  end subroutine zm_gath_avg_init
++
++  subroutine zm_gath_avg_accum( &
++       lengath, ideep, mu, eu, du, &
++       md, ed, dp, dsubcld, jt, &
++       maxg, zga)
++    integer, intent(in) :: lengath
++    integer, intent(in) :: ideep(pcols)
++    real(r8), intent(in) :: mu(pcols, pver)
++    real(r8), intent(in) :: eu(pcols, pver)
++    real(r8), intent(in) :: du(pcols, pver)
++    real(r8), intent(in) :: md(pcols, pver)
++    real(r8), intent(in) :: ed(pcols, pver)
++    real(r8), intent(in) :: dp(pcols, pver)
++    real(r8), intent(in) :: dsubcld(pcols)
++    integer, intent(in) :: jt(pcols)
++    integer, intent(in) :: maxg(pcols)
++
++    type(zm_gath_avg), intent(inout) :: zga
++
++    integer :: i, k
++
++    zga%step_count = zga%step_count + 1
++
++    do i = 1, lengath
++       zga%con_count(ideep(i)) = zga%con_count(ideep(i)) + 1
++
++       zga%mu(ideep(i),:) = zga%mu(ideep(i),:) + mu(i,:)
++       zga%eu(ideep(i),:) = zga%eu(ideep(i),:) + eu(i,:)
++       zga%du(ideep(i),:) = zga%du(ideep(i),:) + du(i,:)
++       zga%md(ideep(i),:) = zga%md(ideep(i),:) + md(i,:)
++       zga%ed(ideep(i),:) = zga%ed(ideep(i),:) + ed(i,:)
++
++#ifdef TEST_MODE
++       if (any(zga%dp(ideep(i),:) /= dp(i,:))) then
++          stop 1
++       end if
++       if (dsubcld(i) /= sum(zga%dp(ideep(i),maxg(i):pver))) then
++          stop 2
++       end if
++#else
++       ! Just to test that I have correctly traced this during development.
++       ! Do not put this in production.
++       do k = 1, pver
++          call shr_assert_in_domain(abs(zga%dp(ideep(i), k) - dp(i,k)), &
++               lt=1.e-2_r8, varname="dp error")
++       end do
++       call shr_assert_in_domain(abs(dsubcld(i) - sum(zga%dp(ideep(i),maxg(i):pver))), &
++            lt=1.e-2_r8, varname="dsubcld error")
++#endif
++
++       zga%jt(ideep(i)) = min(zga%jt(ideep(i)), jt(i))
++       zga%maxg(ideep(i)) = max(zga%maxg(ideep(i)), maxg(i))
++    end do
++
++  end subroutine zm_gath_avg_accum
++
++  subroutine zm_gath_avg_output( &
++       zga, lengath, ideep, mu, eu, &
++       du, md, ed, dp, dsubcld, &
++       jt, maxg)
++    type(zm_gath_avg), intent(in) :: zga
++
++    integer, intent(out) :: lengath
++    integer, intent(out) :: ideep(pcols)
++    real(r8), intent(out) :: mu(pcols, pver)
++    real(r8), intent(out) :: eu(pcols, pver)
++    real(r8), intent(out) :: du(pcols, pver)
++    real(r8), intent(out) :: md(pcols, pver)
++    real(r8), intent(out) :: ed(pcols, pver)
++    real(r8), intent(out) :: dp(pcols, pver)
++    real(r8), intent(out) :: dsubcld(pcols)
++    integer, intent(out) :: jt(pcols)
++    integer, intent(out) :: maxg(pcols)
++
++    integer :: i
++
++    lengath = 0
++    do i = 1, pcols
++       if (zga%con_count(i) > 0) then
++          lengath = lengath + 1
++          ideep(lengath) = i
++       end if
++    end do
++
++    do i = 1, lengath
++       mu(i,:) = zga%mu(ideep(i),:) / zga%step_count
++       eu(i,:) = zga%eu(ideep(i),:) / zga%step_count
++       du(i,:) = zga%du(ideep(i),:) / zga%step_count
++       md(i,:) = zga%md(ideep(i),:) / zga%step_count
++       ed(i,:) = zga%ed(ideep(i),:) / zga%step_count
++
++       jt(i) = zga%jt(ideep(i))
++       maxg(i) = zga%maxg(ideep(i))
++
++       dp(i,:) = zga%dp(ideep(i),:)
++       dsubcld(i) = sum(dp(i,maxg(i):pver))
++    end do
++
++  end subroutine zm_gath_avg_output
++
++end module zm_average_gathered
