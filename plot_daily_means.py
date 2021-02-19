@@ -19,9 +19,18 @@ END_AVG_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
-USE_PRESAER = False
+FOCUS_PRECIP = False
+USE_PRESAER = True
+LAND_ONLY = False
+OCEAN_ONLY = False # Note that this includes ocean and sea-ice grid cells
 TROPICS_ONLY = False
 MIDLATITUDES_ONLY = False
+
+assert not (FOCUS_PRECIP and USE_PRESAER), \
+    "no precipitation-specific prescribed aerosol run set has been defined"
+
+assert not (LAND_ONLY and OCEAN_ONLY), \
+    "can't do only land and only ocean"
 
 assert not (TROPICS_ONLY and MIDLATITUDES_ONLY), \
     "can't do only tropics and only midlatitudes"
@@ -31,12 +40,22 @@ ndays = len(days)
 navgdays = END_AVG_DAY - START_AVG_DAY + 1
 
 suffix = '_d{}-{}'.format(day_str(START_DAY), day_str(END_DAY))
+if FOCUS_PRECIP:
+    suffix += '_precip'
 if USE_PRESAER:
     suffix += '_presaer'
+if LAND_ONLY:
+    sfc_suffix = 'lnd'
+elif OCEAN_ONLY:
+    sfc_suffix = 'ocn'
+else:
+    sfc_suffix = ''
 if TROPICS_ONLY:
-    suffix += '_tropics'
-if MIDLATITUDES_ONLY:
-    suffix += '_midlats'
+    suffix += '_{}tropics'.format(sfc_suffix)
+elif MIDLATITUDES_ONLY:
+    suffix += '_{}midlats'.format(sfc_suffix)
+elif sfc_suffix != '':
+    suffix += '_{}'.format(sfc_suffix)
 
 log_file = open("plot_daily_log{}.txt".format(suffix), 'w')
 
@@ -44,10 +63,15 @@ if USE_PRESAER:
     REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
         E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_ZM_10s_lower_tau", "ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s", "CLUBBMICRO10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s_lower_tau", "CLUBBMICRO10ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_cld_10s_lower_tau", "CLD10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_cld_10s_lower_tau2", "CLD10LT2PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_all_10s", "ALL10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_all_10s_lower_tau", "ALL10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
     STYLES = {
         "CLUBBMICRO10PA": ('indigo', '-'),
@@ -55,6 +79,43 @@ if USE_PRESAER:
         "ZM10PA": ('g', '-'),
         "CLUBBMICRO10ZM10PA": ('saddlebrown', '-'),
         "CLD10PA": ('slateblue', '-'),
+        "ALL10LTPA": ('dimgrey', '-.'),
+        "ZM10LTPA": ('g', '-.'),
+        "CLUBBMICRO10ZM10LTPA": ('saddlebrown', '-.'),
+        "CLD10LTPA": ('slateblue', '-.'),
+        "CLD10LT2PA": ('slateblue', ':'),
+    }
+elif FOCUS_PRECIP:
+    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
+    TEST_CASES = [
+        E3SMCaseOutput("timestep_precip_grad", "PFMG", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad_MG2_10s", "PFMGMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad_CLUBB_MG2_10s", "PFMGCLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_all_300s", "ALL300", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_all_60s", "ALL60", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
+    ]
+    STYLES = {
+        "DYN10": ('y', '-'),
+        "CLUBB10": ('b', '-'),
+        "MICRO10": ('r', '-'),
+        "CLUBB10MICRO10": ('maroon', '-'),
+        "CLUBBMICROSTR": ('m', '-'),
+        "CLUBBMICROSTR60": ('m', '--'),
+        "CLUBBMICRO60": ('indigo', '--'),
+        "CLUBBMICRO10": ('indigo', '-'),
+        "ALL10": ('dimgrey', '-'),
+        "ALL60": ('dimgrey', '--'),
+        "ALL300": ('dimgrey', ':'),
+        "ALLRAD10": ('orange', '-'),
+        "PFMG": ('k', '-.'),
+        "PFMGMICRO10": ('r', '-.'),
+        "PFMGCLUBBMICRO10": ('indigo', '-.'),
     }
 else:
     REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
@@ -62,8 +123,8 @@ else:
         E3SMCaseOutput("timestep_dyn_10s", "DYN10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_10s", "CLUBB10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_10s_MG2_10s", "CLUBB10MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_MG2_Strang", "CLUBBMICROSTR", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_CLUBB_MG2_Strang_60s", "CLUBBMICROSTR60", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_CLUBB_MG2_Strang", "CLUBBMICROSTR", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_CLUBB_MG2_Strang_60s", "CLUBBMICROSTR60", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_MG2_10s", "MICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
@@ -95,6 +156,12 @@ rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
 nlev = len(rfile0.dimensions['lev'])
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
+if LAND_ONLY:
+    landfrac = rfile0['LANDFRAC'][0,:]
+    area *= landfrac
+elif OCEAN_ONLY:
+    landfrac = rfile0['LANDFRAC'][0,:]
+    area *= 1. - landfrac
 # For tropics_only cases, just use a weight of 0 for all other cases.
 if TROPICS_ONLY:
     lat = rfile0['lat'][:]
@@ -212,7 +279,7 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             plot_name = plot_names[name]
 
         get_2D = identity
-        if name == "RELHUM" or name == "Q" or name == "T":
+        if name in vars_3D:
             get_2D = partial(slice_at, nlev-1)
 
         if name in log_plot_names:
@@ -269,12 +336,20 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
         print(name, " has reference mean: ", sum(ref_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
               file=log_file)
         for i in range(case_num):
+            case_name = TEST_CASES[i].short_name
             test_plot_var = get_2D(test_means[name][i])
             diff_plot_var = get_2D(diff_means[name][i])
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum(test_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
+            print(name, " has case ", case_name, " mean: ", sum(test_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
                   file=log_file)
             print(name, " has difference mean: ", sum(diff_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
                   file=log_file)
+            if USE_PRESAER and "LT" in case_name:
+                compare_name = TEST_CASES[i-1].short_name
+                compare_plot_var = get_2D(test_means[name][i-1])
+                print(name, " has mean difference from ", compare_name, ": ",
+                      sum(test_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays - \
+                      sum(compare_plot_var[START_AVG_DAY-START_DAY:END_AVG_DAY-START_DAY+1])/navgdays,
+                      file=log_file)
 
 plot_names = {
     'LWCF': "longwave cloud forcing",
@@ -297,7 +372,9 @@ plot_names = {
     'U10': "10 meter wind speed",
     'RELHUM': "surface relative humidity",
     'Q': "specific humidity",
+    'CLDLIQ': "lowest level cloud liquid",
     'TMQ': "precipitable water",
+    'CLOUD': "lowest level cloud fraction",
     'T': "lowest level temperature",
 }
 
@@ -344,7 +421,9 @@ units = {
     'U10': r'$m/s$',
     'RELHUM': r'%',
     'Q': r'$g/kg$',
+    'CLDLIQ': r"$g/kg$",
     'TMQ': r'$kg/m^2$',
+    'CLOUD': r'$fraction$',
     'T': r'$K$',
 }
 names = list(units.keys())
@@ -357,11 +436,14 @@ scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
 scales['Q'] = 1000.
+scales['CLDLIQ'] = 1000.
 
 vars_3D = [
     'RELHUM',
     'Q',
+    'CLDLIQ',
     'T',
+    'CLOUD',
 ]
 
 log_plot_names = []#'AODABS', 'AODVIS', 'AODUV']

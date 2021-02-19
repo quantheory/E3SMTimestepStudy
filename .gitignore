@@ -1,5 +1,4 @@
 *.png
 *.eps
-plot_daily_log_*.txt
-plot_2D_log_*.txt
-
+*_log*.txt
+*_log*.txt

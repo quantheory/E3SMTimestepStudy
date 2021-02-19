@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from os.path import join
+
 from functools import partial
 
 import numpy as np
@@ -11,6 +13,7 @@ import netCDF4 as nc4
 
 from e3sm_case_output import E3SMCaseOutput, day_str
 
+abs_cmap = plt.get_cmap('BuGn')
 cmap = plt.get_cmap('coolwarm')
 bmap = basemap.Basemap(lon_0=180.)
 
@@ -25,9 +28,9 @@ def inverse(a):
 START_DAY = 3
 END_DAY = 15
 
-DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs_lat_lon"
+DAILY_FILE_LOC = "/p/lscratchh/santos36/timestep_daily_avgs_lat_lon"
 
-USE_PRESAER=False
+USE_PRESAER = False
 
 days = list(range(START_DAY, END_DAY+1))
 ndays = len(days)
@@ -46,6 +49,10 @@ if USE_PRESAER:
         E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_ZM_10s_lower_tau", "ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s_lower_tau", "CLUBBMICRO10ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_cld_10s_lower_tau", "CLD10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_all_10s_lower_tau", "ALL10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 else:
     REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
@@ -59,10 +66,14 @@ else:
         E3SMCaseOutput("timestep_CLUBB_MG2_Strang_60s", "CLUBBMICROSTR60", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_10s", "CLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_CLUBB_MG2_60s", "CLUBBMICRO60", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_DAY),
-        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_ZM_10s", "ZM10", DAILY_FILE_LOC, START_DAY, END_DAY),
+#        E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_rad_10s", "ALLRAD10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_300s", "ALL300", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_all_60s", "ALL60", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad", "PFMG", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad_MG2_10s", "PFMGMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad_CLUBB_MG2_10s", "PFMGCLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 
 rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
@@ -141,6 +152,7 @@ plot_names = {
     'SWCF': "short wave cloud forcing",
     'PRECC': "convective precipitation",
     'PRECL': "large-scale precipitation",
+    'PRECE': "extreme precipitation",
     'PRECT': "total precipitation",
     'TGCLDIWP': "ice water path",
     'TGCLDLWP': "liquid water path",
@@ -160,6 +172,7 @@ plot_names = {
     'CLDLIQ': "lowest level cloud liquid",
     'T': "lowest level temperature",
     'CLOUD': "lowest level cloud fraction",
+    'TMQ': "precipitable water",
 }
 
 units = {
@@ -167,6 +180,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
+    'PRECE': r'$mm/day$',
     'PRECT': r'$mm/day$',
     'TGCLDIWP': r'$g/m^2$',
     'TGCLDLWP': r'$g/m^2$',
@@ -208,6 +222,7 @@ units = {
     'CLDLIQ': r"$g/kg$",
     'T': r'$K$',
     'CLOUD': r'$fraction$',
+    'TMQ': r'$kg/m^2$',
 }
 varnames = list(units.keys())
 scales = dict()
@@ -217,6 +232,7 @@ scales['TGCLDIWP'] = 1000.
 scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
+scales['PRECE'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
 scales['Q'] = 1000.
 scales['CLDLIQ'] = 1000.
@@ -238,6 +254,28 @@ vars_3D = [
     'CLOUD',
 ]
 
+PRECIP_OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip_lat_lon/"
+
+out_file_template = "{}.freq.short.d{}-d{}.nc"
+
+# Threshold for precipitation to be considered "extreme", in mm/day.
+PRECE_THRESHOLD = 97.
+
+def get_prece(case_name, start_day, end_day):
+    file_name = out_file_template.format(case_name, day_str(start_day), day_str(end_day))
+    precip_file = nc4.Dataset(join(PRECIP_OUTPUT_DIR, file_name), 'r')
+    nbins = len(precip_file.dimensions['nbins'])
+    bin_lower_bounds = precip_file['bin_lower_bounds'][:]
+    ibinthresh = -1
+    for i in range(nbins):
+        if bin_lower_bounds[i] > PRECE_THRESHOLD:
+            ibinthresh = i
+            break
+    if ibinthresh == -1:
+        print("Warning: extreme precip threshold greater than largest bin bound.")
+    prece = precip_file["PRECT_amount"][:,:,ibinthresh:].sum(axis=2)
+    return prece
+
 # Possible ways to extract a 2D section start here:
 def identity(x):
     return x
@@ -245,7 +283,17 @@ def identity(x):
 def slice_at(level, x):
     return x[level,:,:]
 
-ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames, scales)
+print("Reading model output.")
+
+varnames_readhist = [name for name in varnames if name != "PRECE"]
+ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, days, varnames_readhist, scales)
+
+print("Reading extreme precipitation.")
+if "PRECE" in varnames:
+    ref_means["PRECE"] = get_prece(REF_CASE.case_name, START_DAY, END_DAY)
+    for icase in range(len(TEST_CASES)):
+        test_means[icase]["PRECE"] = get_prece(TEST_CASES[icase].case_name, START_DAY, END_DAY)
+        diff_means[icase]["PRECE"] = test_means[icase]["PRECE"] - ref_means["PRECE"]
 
 # Should have this actually read from the plot_daily_means output.
 diff_global_means = {
@@ -280,7 +328,7 @@ for name in varnames:
     if name in diff_lims:
         clim_diff = diff_lims[name]
 
-    plt.pcolormesh(lon[:], lat[:], ref_plot_var)
+    plt.pcolormesh(lon[:], lat[:], ref_plot_var, cmap=abs_cmap)
     bmap.drawcoastlines()
     ax = plt.gca()
     ax.set_xticks([0., 90., 180., 270., 360.])
@@ -303,7 +351,7 @@ for name in varnames:
         diff_plot_var = get_2D(diff_means[icase][name])
         case_name = TEST_CASES[icase].short_name
 
-        plt.pcolormesh(lon[:], lat[:], test_plot_var)
+        plt.pcolormesh(lon[:], lat[:], test_plot_var, cmap=abs_cmap)
         bmap.drawcoastlines()
         ax = plt.gca()
         ax.set_xticks([0., 90., 180., 270., 360.])

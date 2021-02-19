@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from os.path import join
+
 from functools import partial
 
 import numpy as np
@@ -22,8 +24,8 @@ def inverse(a):
     a = np.arcsin(a)
     return np.rad2deg(a)
 
-START_YEAR = 3
-START_MONTH = 12
+START_YEAR = 1
+START_MONTH = 3
 END_YEAR = 4
 END_MONTH = 2
 
@@ -156,6 +158,7 @@ plot_names = {
     'SWCF': "short wave cloud forcing",
     'PRECC': "convective precipitation",
     'PRECL': "large-scale precipitation",
+    'PRECE': "extreme precipitation",
     'PRECT': "total precipitation",
     'TGCLDIWP': "ice water path",
     'TGCLDLWP': "liquid water path",
@@ -175,6 +178,7 @@ plot_names = {
     'CLDLIQ': "lowest level cloud liquid",
     'T': "lowest level temperature",
     'CLOUD': "lowest level cloud fraction",
+    'TMQ': "precipitable water",
 }
 
 units = {
@@ -182,6 +186,7 @@ units = {
     'SWCF': r'$W/m^2$',
     'PRECC': r'$mm/day$',
     'PRECL': r'$mm/day$',
+    'PRECE': r'$mm/day$',
     'PRECT': r'$mm/day$',
     'TGCLDIWP': r'$g/m^2$',
     'TGCLDLWP': r'$g/m^2$',
@@ -223,8 +228,11 @@ units = {
     'CLDLIQ': r"$g/kg$",
     'T': r'$K$',
     'CLOUD': r'$fraction$',
+    'TMQ': r'$kg/m^2$',
 }
 varnames = list(units.keys())
+# Only can plot extreme precipitation for a subset of months.
+varnames.remove('PRECE')
 scales = dict()
 for name in varnames:
     scales[name] = 1.
@@ -232,6 +240,7 @@ scales['TGCLDIWP'] = 1000.
 scales['TGCLDLWP'] = 1000.
 scales['PRECC'] = 1000.*86400.
 scales['PRECL'] = 1000.*86400.
+scales['PRECE'] = 1000.*86400.
 scales['PRECT'] = 1000.*86400.
 scales['Q'] = 1000.
 scales['CLDLIQ'] = 1000.
@@ -253,6 +262,36 @@ vars_3D = [
     'CLOUD',
 ]
 
+PRECIP_OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip_lat_lon/"
+
+out_file_template = "{}.freq.00{}-{}.nc"
+
+# Threshold for precipitation to be considered "extreme", in mm/day.
+PRECE_THRESHOLD = 97.
+
+def get_prece(case_name):
+    file_name = out_file_template.format(case_name, day_str(START_YEAR), day_str(START_MONTH))
+    precip_file = nc4.Dataset(join(PRECIP_OUTPUT_DIR, file_name), 'r')
+    nbins = len(precip_file.dimensions['nbins'])
+    bin_lower_bounds = precip_file['bin_lower_bounds'][:]
+    precip_file.close()
+    ibinthresh = -1
+    for i in range(nbins):
+        if bin_lower_bounds[i] > PRECE_THRESHOLD:
+            ibinthresh = i
+            break
+    if ibinthresh == -1:
+        print("Warning: extreme precip threshold greater than largest bin bound.")
+    prece = np.zeros((nlat, nlon))
+    for imonth in imonths:
+        month = months[imonth]
+        year = years[imonth]
+        file_name = out_file_template.format(case_name, day_str(year), day_str(month))
+        precip_file = nc4.Dataset(join(PRECIP_OUTPUT_DIR, file_name), 'r')
+        prece += precip_file["PRECT_amount"][:,:,ibinthresh:].sum(axis=2)
+        precip_file.close()
+    return prece
+
 # Possible ways to extract a 2D section start here:
 def identity(x):
     return x
@@ -260,7 +299,18 @@ def identity(x):
 def slice_at(level, x):
     return x[level,:,:]
 
-ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, months, varnames, scales)
+print("Reading model output.")
+
+varnames_readhist = [name for name in varnames if name != "PRECE"]
+
+ref_means, test_means, diff_means = get_overall_averages(REF_CASE, TEST_CASES, months, varnames_readhist, scales)
+
+print("Reading extreme precipitation.")
+if "PRECE" in varnames:
+    ref_means["PRECE"] = get_prece(REF_CASE.case_name)
+    for icase in range(len(TEST_CASES)):
+        test_means[icase]["PRECE"] = get_prece(TEST_CASES[icase].case_name)
+        diff_means[icase]["PRECE"] = test_means[icase]["PRECE"] - ref_means["PRECE"]
 
 # Should have this actually read from the plot_monthly_means output.
 diff_global_means = {

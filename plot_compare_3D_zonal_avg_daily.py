@@ -23,7 +23,7 @@ END_DAY = 15
 
 DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs_lat_lon"
 
-USE_PRESAER = False
+USE_PRESAER = True
 
 days = list(range(START_DAY, END_DAY+1))
 ndays = len(days)
@@ -42,6 +42,10 @@ if USE_PRESAER:
         E3SMCaseOutput("timestep_presaer_ZM_10s", "ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s", "CLUBBMICRO10ZM10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_presaer_cld_10s", "CLD10PA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_ZM_10s_lower_tau", "ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_CLUBB_MG2_10s_ZM_10s_lower_tau", "CLUBBMICRO10ZM10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_cld_10s_lower_tau", "CLD10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_presaer_all_10s_lower_tau", "ALL10LTPA", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 else:
     REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
@@ -59,6 +63,8 @@ else:
         E3SMCaseOutput("timestep_ZM_300s", "ZM300", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_rad_10s", "ALLRAD10", DAILY_FILE_LOC, START_DAY, END_DAY),
         E3SMCaseOutput("timestep_all_300s", "ALL300", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad", "PFMG", DAILY_FILE_LOC, START_DAY, END_DAY),
+        E3SMCaseOutput("timestep_precip_grad_CLUBB_MG2_10s", "PFMGCLUBBMICRO10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
 
 rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')

@@ -11,20 +11,15 @@ import netCDF4 as nc4
 from e3sm_case_output import E3SMCaseOutput, day_str
 
 START_YEAR = 1
-START_MONTH = 1
+START_MONTH = 3
 END_YEAR = 4
 END_MONTH = 2
-
-START_AVG_YEAR = 1
-START_AVG_MONTH = 3
-END_AVG_YEAR = 4
-END_AVG_MONTH = 2
 
 MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs/"
 
 USE_PRESAER=False
-LAND_TROPICS = True
-TROPICS_ONLY=False
+LAND_TROPICS = False
+TROPICS_ONLY=True
 MIDLATITUDES_ONLY=False
 
 if LAND_TROPICS:
@@ -46,8 +41,6 @@ for i in range(nmonths):
     if curr_month > 12:
         curr_month = 1
         curr_year += 1
-navgmonths = (END_AVG_YEAR - START_AVG_YEAR) * 12 \
-    - (START_AVG_MONTH - 1) + END_AVG_MONTH
 
 suffix = '_y{}m{}-y{}m{}'.format(day_str(START_YEAR),
                                  day_str(START_MONTH),
@@ -63,7 +56,7 @@ if TROPICS_ONLY:
 if MIDLATITUDES_ONLY:
     suffix += '_midlats'
 
-log_file = open("plot_monthly_log{}.txt".format(suffix), 'w')
+log_file = open("plot_dynamics_attribution_log{}.txt".format(suffix), 'w')
 
 if USE_PRESAER:
     REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", MONTHLY_FILE_LOC, START_MONTH, END_MONTH)
@@ -105,7 +98,43 @@ area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
 
-def calc_var_stats(ref_case, test_cases, month, year, varnames):
+nbins = 200
+omega_span = (-0.35, 0.15)
+bin_size = (omega_span[1] - omega_span[0]) / nbins
+
+def time_avg_to_bins(varnames, time_avg):
+    omega_pdf = np.zeros((nbins,))
+    var_dists = dict()
+    for varname in varnames:
+        if varname in vars_3D:
+            var_dists[varname] = np.zeros((nlev, nbins))
+        else:
+            var_dists[varname] = np.zeros((nbins,))
+    for i in range(ncol):
+        omega = time_avg["OMEGA500"][i]
+        ibin = int((omega - omega_span[0]) / bin_size)
+        if 0 <= ibin < nbins:
+            weight = weights[i]
+            omega_pdf[ibin] += weight
+            for varname in varnames:
+                if varname in vars_3D:
+                    for jlev in range(nlev):
+                        var_dists[varname][jlev,ibin] += time_avg[varname][jlev,i] * weights[i]
+                else:
+                    var_dists[varname][ibin] += time_avg[varname][i] * weights[i]
+    for varname in varnames:
+        if varname in vars_3D:
+            for jlev in range(nlev):
+                for ibin in range(nbins):
+                    if omega_pdf[ibin] > 0:
+                        var_dists[varname][jlev,ibin] /= omega_pdf[ibin]
+        else:
+            for ibin in range(nbins):
+                if omega_pdf[ibin] > 0:
+                    var_dists[varname][ibin] /= omega_pdf[ibin]
+    return (omega_pdf, var_dists)
+
+def calc_omega_var_bins(ref_case, test_cases, month, year, varnames):
     varnames_read = [name for name in varnames if name != "PRECT" and name != "TAU"]
     if "PRECT" in varnames:
         if "PRECL" not in varnames:
@@ -128,72 +157,65 @@ def calc_var_stats(ref_case, test_cases, month, year, varnames):
         for icase in range(case_num):
             test_time_avgs[icase]["TAU"] = np.sqrt(test_time_avgs[icase]["TAUX"]**2 + test_time_avgs[icase]["TAUY"]**2)
             diff_time_avgs[icase]["TAU"] = test_time_avgs[icase]["TAU"] - ref_time_avg["TAU"]
-    ref_avg = dict()
-    test_avgs = dict()
-    diff_avgs = dict()
-    rmses = dict()
-    for varname in varnames:
-        if varname in vars_3D:
-            ref_avg[varname] = np.zeros((nlev,))
-            for jlev in range(nlev):
-                ref_avg[varname][jlev] = (ref_time_avg[varname][jlev,:] * weights).sum()
-        else:
-            ref_avg[varname] = (ref_time_avg[varname] * weights).sum()
-        test_avgs[varname] = []
-        diff_avgs[varname] = []
-        rmses[varname] = []
-        for i in range(len(test_cases)):
-            if varname in vars_3D:
-                test_avgs[varname].append(np.zeros((nlev,)))
-                diff_avgs[varname].append(np.zeros((nlev,)))
-                rmses[varname].append(np.zeros((nlev,)))
-                for jlev in range(nlev):
-                    test_avgs[varname][-1][jlev] = (test_time_avgs[i][varname][jlev,:] * weights).sum()
-                    diff_avgs[varname][-1][jlev] = (diff_time_avgs[i][varname][jlev,:] * weights).sum()
-                    rmses[varname][-1][jlev] = np.sqrt((diff_time_avgs[i][varname][jlev,:]**2 * weights).sum())
-            else:
-                test_avgs[varname].append((test_time_avgs[i][varname] * weights).sum())
-                diff_avgs[varname].append((diff_time_avgs[i][varname] * weights).sum())
-                rmses[varname].append(np.sqrt((diff_time_avgs[i][varname]**2 * weights).sum()))
-            assert np.isclose(diff_avgs[varname][i], test_avgs[varname][i] - ref_avg[varname]).all(), \
-                "Problem with diff of variable {} from case {}".format(varname, TEST_CASES[i].short_name)
-    return (ref_avg, test_avgs, diff_avgs, rmses)
+    ref_omega_pdf, ref_var_dists = time_avg_to_bins(varnames, ref_time_avg)
+    test_omega_pdfs = []
+    test_var_dists = []
+    for i in range(len(test_cases)):
+        test_pdf, test_dist = time_avg_to_bins(varnames, test_time_avgs[i])
+        test_omega_pdfs.append(test_pdf)
+        test_var_dists.append(test_dist)
+    return (ref_omega_pdf, ref_var_dists, test_omega_pdfs, test_var_dists)
 
 # Possible ways to extract a 2D section start here:
 def identity(x):
     return x
 
 def slice_at(level, x):
-    return x[:,level]
+    return x[level,:]
 
-def plot_vars_over_time(names, units, scales, log_plot_names):
-    ref_means = dict()
-    test_means = dict()
-    diff_means = dict()
-    rmses = dict()
+def plot_dyn_attr(names, units, scales, log_plot_names):
+
+    ref_total_pdf = np.zeros((nbins,))
+    ref_total_dists = dict()
     for name in names:
         if name in vars_3D:
-            ref_means[name] = np.zeros((nmonths, nlev))
-            test_means[name] = np.zeros((case_num, nmonths, nlev))
-            diff_means[name] = np.zeros((case_num, nmonths, nlev))
-            rmses[name] = np.zeros((case_num, nmonths, nlev))
+            ref_total_dists[name] = np.zeros((nlev, nbins))
         else:
-            ref_means[name] = np.zeros((nmonths,))
-            test_means[name] = np.zeros((case_num, nmonths))
-            diff_means[name] = np.zeros((case_num, nmonths))
-            rmses[name] = np.zeros((case_num, nmonths))
+            ref_total_dists[name] = np.zeros((nbins,))
+    test_total_pdfs = []
+    test_total_dists = []
+    for i in range(case_num):
+        test_total_pdfs.append(np.zeros((nbins,)))
+        total_dists = dict()
+        for name in names:
+            if name in vars_3D:
+                total_dists[name] = np.zeros((nlev, nbins))
+            else:
+                total_dists[name] = np.zeros((nbins,))
+        test_total_dists.append(total_dists)
 
     for imonth in range(nmonths):
         month = months[imonth]
         year = years[imonth]
         print("On month: ", month, ", year: ", year, file=log_file, flush=True)
-        ref_mean, test_case_means, diff_case_means, case_rmses = calc_var_stats(REF_CASE, TEST_CASES, month, year, names)
+        ref_omega_pdf, ref_var_dists, test_omega_pdfs, test_var_dists = calc_omega_var_bins(REF_CASE, TEST_CASES, month, year, names)
+        ref_total_pdf += ref_omega_pdf / nmonths
         for name in names:
-            ref_means[name][imonth] = ref_mean[name]*scales[name]
-            for i in range(case_num):
-                test_means[name][i,imonth] = test_case_means[name][i]*scales[name]
-                diff_means[name][i,imonth] = diff_case_means[name][i]*scales[name]
-                rmses[name][i,imonth] = case_rmses[name][i]*scales[name]
+            ref_total_dists[name] += ref_var_dists[name]*scales[name] / nmonths
+        for i in range(case_num):
+            test_total_pdfs[i] += test_omega_pdfs[i] / nmonths
+            for name in names:
+                test_total_dists[i][name] += test_var_dists[i][name]*scales[name] / nmonths
+
+    omegas = 864.*np.linspace(omega_span[0] + 0.5*bin_size, omega_span[1] - 0.5*bin_size, nbins)
+    plt.plot(omegas, ref_total_pdf / bin_size, label=REF_CASE.short_name)
+    for i in range(case_num):
+        plt.plot(omegas, test_total_pdfs[i] / bin_size, label=TEST_CASES[i].short_name)
+    plt.axis('tight')
+    plt.xlabel(r'$\omega_{500}$')
+    plt.ylabel(r'$p(\omega_{500})$')
+    plt.savefig('OMEGA500_dist{}.png'.format(suffix))
+    plt.close()
 
     for name in names:
         plot_name = name
@@ -208,54 +230,64 @@ def plot_vars_over_time(names, units, scales, log_plot_names):
             plot_var = plt.semilogy
         else:
             plot_var = plt.plot
-        ref_plot_var = get_2D(ref_means[name])
-        plot_var(imonths, ref_plot_var, label=REF_CASE.short_name)
+        ref_plot_var = get_2D(ref_total_dists[name]) * ref_total_pdf
+        plot_var(omegas, ref_plot_var, label=REF_CASE.short_name)
         for i in range(case_num):
-            test_plot_var = get_2D(test_means[name][i])
-            plot_var(imonths,
+            test_plot_var = get_2D(test_total_dists[i][name]) * test_total_pdfs[i]
+            plot_var(omegas,
                      test_plot_var,
                      label=TEST_CASES[i].short_name)
+            print(name, " for case ", TEST_CASES[i].short_name, " has total diff ",
+                  (test_plot_var - ref_plot_var).sum(),
+                  file=log_file, flush=True)
         plt.axis('tight')
-        plt.xlabel("month")
+        plt.xlabel(r'$\omega_{500}$')
         plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
-        plt.savefig('{}_time{}.png'.format(name, suffix))
+        plt.savefig('{}_pdf{}.png'.format(name, suffix))
         plt.close()
 
         for i in range(case_num):
-            diff_plot_var = get_2D(diff_means[name][i])
-            plot_var(imonths,
-                     diff_plot_var,
+            pdf_diff = test_total_pdfs[i] - ref_total_pdf
+            test_plot_var = get_2D(ref_total_dists[name]) * pdf_diff
+            plot_var(omegas,
+                     test_plot_var,
                      label=TEST_CASES[i].short_name)
+            print(name, " for case ", TEST_CASES[i].short_name, " has dynamics diff ",
+                  test_plot_var.sum(), file=log_file, flush=True)
         plt.axis('tight')
-        plt.xlabel("month")
-        plt.ylabel("Mean {} difference ({})".format(plot_name, units[name]))
-        plt.savefig('{}_diff_time{}.png'.format(name, suffix))
+        plt.xlabel(r'$\omega_{500}$')
+        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
+        plt.savefig('{}_pdf_dyn{}.png'.format(name, suffix))
         plt.close()
 
+        ref_plot_var = get_2D(ref_total_dists[name])
         for i in range(case_num):
-            rmse_plot_var = get_2D(rmses[name][i])
-            plot_var(imonths,
-                     rmse_plot_var,
+            test_plot_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * ref_total_pdf
+            plot_var(omegas,
+                     test_plot_var,
                      label=TEST_CASES[i].short_name)
+            print(name, " for case ", TEST_CASES[i].short_name, " has thermodynamics diff ",
+                  test_plot_var.sum(), file=log_file, flush=True)
         plt.axis('tight')
-        plt.xlabel("month")
-        plt.ylabel("{} RMSE ({})".format(plot_name, units[name]))
-        plt.savefig('{}_rmse_time{}.png'.format(name, suffix))
+        plt.xlabel(r'$\omega_{500}$')
+        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
+        plt.savefig('{}_pdf_thermo{}.png'.format(name, suffix))
         plt.close()
 
-        month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        month_weights = [month_days[months[imonth] - 1] for imonth in imonths]
-        weight_norm = sum(month_weights)
-        month_weights = [weight / weight_norm for weight in month_weights]
-        print(name, " has reference mean: ", sum([ref_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
-              file=log_file)
+        ref_plot_var = get_2D(ref_total_dists[name])
         for i in range(case_num):
-            test_plot_var = get_2D(test_means[name][i])
-            diff_plot_var = get_2D(diff_means[name][i])
-            print(name, " has case ", TEST_CASES[i].short_name, " mean: ", sum([test_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
-                  file=log_file)
-            print(name, " has difference mean: ", sum([diff_plot_var[imonth] * month_weights[imonth] for imonth in imonths]),
-                  file=log_file)
+            pdf_diff = test_total_pdfs[i] - ref_total_pdf
+            test_plot_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * pdf_diff
+            plot_var(omegas,
+                     test_plot_var,
+                     label=TEST_CASES[i].short_name)
+            print(name, " for case ", TEST_CASES[i].short_name, " has covariance diff ",
+                  test_plot_var.sum(), file=log_file, flush=True)
+        plt.axis('tight')
+        plt.xlabel(r'$\omega_{500}$')
+        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
+        plt.savefig('{}_pdf_covar{}.png'.format(name, suffix))
+        plt.close()
 
 plot_names = {
     'LWCF': "long-wave cloud forcing",
@@ -347,6 +379,6 @@ vars_3D = [
 
 log_plot_names = []#'AODABS', 'AODVIS', 'AODUV']
 
-plot_vars_over_time(names, units, scales, log_plot_names)
+plot_dyn_attr(names, units, scales, log_plot_names)
 
 log_file.close()

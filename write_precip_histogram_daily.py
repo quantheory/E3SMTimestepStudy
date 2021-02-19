@@ -7,7 +7,7 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str, time_str
 
-CASE_NAME = "timestep_CLUBB_MG2_Strang_60s"
+CASE_NAME = "timestep_presaer_cld_10s_lower_tau2"
 CASE_DIR = "/p/lscratchh/santos36/ACME/{}/run".format(CASE_NAME)
 OUTPUT_DIR = "/p/lustre2/santos36/timestep_precip/"
 NUM_BINS = 101
