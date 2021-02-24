@@ -10,12 +10,10 @@ import netCDF4 as nc4
 
 from e3sm_case_output import E3SMCaseOutput, day_str
 
-START_YEAR = 1
-START_MONTH = 3
-END_YEAR = 4
-END_MONTH = 2
+START_DAY = 3
+END_DAY = 30
 
-MONTHLY_FILE_LOC="/p/lscratchh/santos36/timestep_monthly_avgs/"
+DAILY_FILE_LOC="/p/lscratchh/santos36/timestep_daily_avgs/"
 
 USE_PRESAER=False
 LAND_TROPICS = False
@@ -28,24 +26,11 @@ if LAND_TROPICS:
 assert not (TROPICS_ONLY and MIDLATITUDES_ONLY), \
     "can't do only tropics and only midlatitudes"
 
-nmonths = (END_YEAR - START_YEAR) * 12 - (START_MONTH - 1) + END_MONTH
-imonths = list(range(nmonths))
-curr_month = START_MONTH
-curr_year = START_YEAR
-months = []
-years = []
-for i in range(nmonths):
-    months.append(curr_month)
-    years.append(curr_year)
-    curr_month += 1
-    if curr_month > 12:
-        curr_month = 1
-        curr_year += 1
+days = list(range(START_DAY, END_DAY+1))
+ndays = len(days)
 
-suffix = '_y{}m{}-y{}m{}'.format(day_str(START_YEAR),
-                                 day_str(START_MONTH),
-                                 day_str(END_YEAR),
-                                 day_str(END_MONTH))
+suffix = '_d{}-{}'.format(day_str(START_DAY), day_str(END_DAY))
+
 if USE_PRESAER:
     suffix += '_presaer'
 if TROPICS_ONLY:
@@ -56,10 +41,10 @@ if TROPICS_ONLY:
 if MIDLATITUDES_ONLY:
     suffix += '_midlats'
 
-log_file = open("plot_dynamics_attribution_log{}.txt".format(suffix), 'w')
+log_file = open("plot_dynamics_attribution_daily_log{}.txt".format(suffix), 'w')
 
 if USE_PRESAER:
-    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", MONTHLY_FILE_LOC, START_MONTH, END_MONTH)
+    REF_CASE = E3SMCaseOutput("timestep_presaer_ctrl", "CTRLPA", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
     ]
     STYLES = {
@@ -75,9 +60,9 @@ if USE_PRESAER:
         "CLD10LT2PA": ('slateblue', ':'),
     }
 else:
-    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", MONTHLY_FILE_LOC, START_MONTH, END_MONTH)
+    REF_CASE = E3SMCaseOutput("timestep_ctrl", "CTRL", DAILY_FILE_LOC, START_DAY, END_DAY)
     TEST_CASES = [
-        E3SMCaseOutput("timestep_all_10s", "ALL10", MONTHLY_FILE_LOC, START_MONTH, END_MONTH),
+        E3SMCaseOutput("timestep_all_10s", "ALL10", DAILY_FILE_LOC, START_DAY, END_DAY),
     ]
     STYLES = {
         "DYN10": ('y', '-'),
@@ -96,7 +81,7 @@ else:
 
 case_num = len(TEST_CASES)
 
-rfile0 = nc4.Dataset(REF_CASE.get_monthly_file_name(START_MONTH, START_YEAR), 'r')
+rfile0 = nc4.Dataset(REF_CASE.get_daily_file_name(START_DAY), 'r')
 nlev = len(rfile0.dimensions['lev'])
 ncol = len(rfile0.dimensions['ncol'])
 area = rfile0['area'][:]
@@ -124,8 +109,8 @@ area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
 
-nbins = 200
-omega_span = (-0.35, 0.15)
+nbins = 100
+omega_span = (-2.7, 1.)
 bin_size = (omega_span[1] - omega_span[0]) / nbins
 
 def time_avg_to_bins(varnames, time_avg):
@@ -160,7 +145,7 @@ def time_avg_to_bins(varnames, time_avg):
                     var_dists[varname][ibin] /= omega_pdf[ibin]
     return (omega_pdf, var_dists)
 
-def calc_omega_var_bins(ref_case, test_cases, month, year, varnames):
+def calc_omega_var_bins(ref_case, test_cases, day, varnames):
     varnames_read = [name for name in varnames if name != "PRECT" and name != "TAU"]
     if "PRECT" in varnames:
         if "PRECL" not in varnames:
@@ -172,7 +157,7 @@ def calc_omega_var_bins(ref_case, test_cases, month, year, varnames):
             varnames_read.append("TAUX")
         if "TAUY" not in varnames:
             varnames_read.append("TAUY")
-    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_monthly_averages(test_cases, month, year, varnames_read)
+    ref_time_avg, test_time_avgs, diff_time_avgs = ref_case.compare_daily_averages(test_cases, day, varnames_read)
     if "PRECT" in varnames:
         ref_time_avg["PRECT"] = ref_time_avg["PRECL"] + ref_time_avg["PRECC"]
         for icase in range(case_num):
@@ -220,18 +205,17 @@ def plot_dyn_attr(names, units, scales, log_plot_names):
                 total_dists[name] = np.zeros((nbins,))
         test_total_dists.append(total_dists)
 
-    for imonth in range(nmonths):
-        month = months[imonth]
-        year = years[imonth]
-        print("On month: ", month, ", year: ", year, file=log_file, flush=True)
-        ref_omega_pdf, ref_var_dists, test_omega_pdfs, test_var_dists = calc_omega_var_bins(REF_CASE, TEST_CASES, month, year, names)
-        ref_total_pdf += ref_omega_pdf / nmonths
+    for iday in range(ndays):
+        day = days[iday]
+        print("On day: ", day, file=log_file, flush=True)
+        ref_omega_pdf, ref_var_dists, test_omega_pdfs, test_var_dists = calc_omega_var_bins(REF_CASE, TEST_CASES, day, names)
+        ref_total_pdf += ref_omega_pdf / ndays
         for name in names:
-            ref_total_dists[name] += ref_var_dists[name]*scales[name] / nmonths
+            ref_total_dists[name] += ref_var_dists[name]*scales[name] / ndays
         for i in range(case_num):
-            test_total_pdfs[i] += test_omega_pdfs[i] / nmonths
+            test_total_pdfs[i] += test_omega_pdfs[i] / ndays
             for name in names:
-                test_total_dists[i][name] += test_var_dists[i][name]*scales[name] / nmonths
+                test_total_dists[i][name] += test_var_dists[i][name]*scales[name] / ndays
 
     omegas = 864.*np.linspace(omega_span[0] + 0.5*bin_size, omega_span[1] - 0.5*bin_size, nbins)
     plt.semilogy(omegas, ref_total_pdf / bin_size, label=REF_CASE.short_name,
@@ -244,6 +228,7 @@ def plot_dyn_attr(names, units, scales, log_plot_names):
     plt.axis('tight')
     plt.xlabel(r'$\omega_{500}$')
     plt.ylabel(r'$p(\omega_{500})$')
+    plt.ylim(1.e-6, 1.e1)
     plt.savefig('OMEGA500_dist{}.png'.format(suffix))
     plt.close()
 

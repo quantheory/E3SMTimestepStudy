@@ -10,8 +10,6 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str, time_str
 
-CASENAME = "timestep_CLUBB_MG2_10s"
-
 START_DAY = 1
 END_DAY = 1
 TIME_STEP = 1800
@@ -19,12 +17,12 @@ assert 86400 % TIME_STEP == 0, "cannot fit even number of time steps in day"
 times_per_day = 86400 // TIME_STEP
 
 CASE_NAMES = [
-#    "timestep_ctrl",
+    "timestep_ctrl",
 #    "timestep_MG2_10s",
-#    "timestep_CLUBB_10s_MG2_10s",
-#    "timestep_CLUBB_MG2_10s",
+    "timestep_CLUBB_10s_MG2_10s",
+    "timestep_CLUBB_MG2_10s",
 #    "timestep_CLUBB_MG2_10s_ftype1",
-#    "timestep_all_10s",
+    "timestep_all_10s",
 #    "timestep_all_300s",
 #    "timestep_all_900s",
 #    "timestep_ctrl_notms",
@@ -34,22 +32,22 @@ CASE_NAMES = [
 #    "timestep_smooth35",
 #    "timestep_300s_niter_change",
 #    "timestep_dyn_10s",
-    "timestep_presaer_ctrl",
-    "timestep_presaer_CLUBB_MG2_10s",
-    "timestep_presaer_CLUBB_MG2_10s_ZM_10s",
-    "timestep_presaer_cld_10s",
-    "timestep_presaer_cld_10s_ftype1",
-    "timestep_presaer_all_10s",
-    "timestep_presaer_all_10s_lower_tau",
-    "timestep_presaer_all_10s_cld_5s",
+#    "timestep_presaer_ctrl",
+#    "timestep_presaer_CLUBB_MG2_10s",
+#    "timestep_presaer_CLUBB_MG2_10s_ZM_10s",
+#    "timestep_presaer_cld_10s",
+#    "timestep_presaer_cld_10s_ftype1",
+#    "timestep_presaer_all_10s",
+#    "timestep_presaer_all_10s_lower_tau",
+#    "timestep_presaer_all_10s_cld_5s",
 ]
 SHORT_CASE_NAMES = [
-#    "CTRL",
+    "CTRL",
 #    "MICRO10",
-#    "CLUBB10MICRO10",
-#    "CLUBBMICRO10",
+    "CLUBB10MICRO10",
+    "CLUBBMICRO10",
 #    "CLUBBMICRO10FTYPE1",
-#    "ALL10",
+    "ALL10",
 #    "ALL300",
 #    "ALL900",
 #    "CTRLFLXAVG",
@@ -59,14 +57,14 @@ SHORT_CASE_NAMES = [
 #    "SMOOTH35",
 #    "ALL300NITERS",
 #    "DYN10",
-    "CTRLPA",
-    "CLUBBMICRO10PA",
-    "CLUBBMICRO10ZM10PA",
-    "CLD10PA",
-    "CLD10FTYPE1PA",
-    "ALL10PA",
-    "ALL10PALT",
-    "ALL10CLD5PA",
+#    "CTRLPA",
+#    "CLUBBMICRO10PA",
+#    "CLUBBMICRO10ZM10PA",
+#    "CLD10PA",
+#    "CLD10FTYPE1PA",
+#    "ALL10PA",
+#    "ALL10PALT",
+#    "ALL10CLD5PA",
 ]
 STYLES = {
     "CTRL": ('k', '-'),
@@ -206,9 +204,9 @@ variables = [
     {'name': 'U', 'units': r'$m/s$', 'ndim': 2},
     {'name': 'V', 'units': r'$m/s$', 'ndim': 2},
     {'name': 'OMEGA', 'units': r'$Pa/s$', 'ndim': 2},
-    {'name': 'OMEGA500', 'units': r'$Pa/s$', 'ndim': 1, 'display': r'$\omega$'},
+    {'name': 'OMEGA500', 'units': r'$Pa/s$', 'ndim': 1, 'display': r'$\omega_{500}$'},
     {'name': 'U10', 'units': r'$m/s$', 'ndim': 1},
-    {'name': 'PS', 'units': r'$Pa$', 'ndim': 1},
+    {'name': 'PSL', 'units': r'$Pa$', 'ndim': 1},
     {'name': 'FSDS', 'units': r'$W/m^2$', 'ndim': 1},
     {'name': 'SWCF', 'units': r'$W/m^2$', 'ndim': 1},
     {'name': 'CLDLOW', 'units': r'fraction', 'ndim': 1},

@@ -10,42 +10,40 @@ import netCDF4 as nc4
 
 from e3sm_case_output import day_str, time_str
 
-CASENAME = "timestep_CLUBB_MG2_10s"
-
 NUM_DAYS = 1
 TIME_STEP = 1800
 assert 86400 % TIME_STEP == 0, "cannot fit even number of time steps in day"
 times_per_day = 86400 // TIME_STEP
 
 CASE_NAMES = [
-#    "timestep_ctrl",
+    "timestep_ctrl",
 #    "timestep_MG2_10s",
-#    "timestep_CLUBB_10s_MG2_10s",
-#    "timestep_CLUBB_MG2_10s",
+    "timestep_CLUBB_10s_MG2_10s",
+    "timestep_CLUBB_MG2_10s",
 #    "timestep_CLUBB_MG2_10s_ftype1",
-#    "timestep_all_10s",
+    "timestep_all_10s",
 #    "timestep_dyn_10s",
-    "timestep_presaer_ctrl",
-    "timestep_presaer_CLUBB_MG2_10s",
-    "timestep_presaer_CLUBB_MG2_10s_ZM_10s",
-    "timestep_presaer_cld_10s",
-    "timestep_presaer_cld_10s_ftype1",
-    "timestep_presaer_all_10s",
+#    "timestep_presaer_ctrl",
+#    "timestep_presaer_CLUBB_MG2_10s",
+#    "timestep_presaer_CLUBB_MG2_10s_ZM_10s",
+#    "timestep_presaer_cld_10s",
+#    "timestep_presaer_cld_10s_ftype1",
+#    "timestep_presaer_all_10s",
 ]
 SHORT_CASE_NAMES = [
-#    "CTRL",
+    "CTRL",
 #    "MICRO10",
-#    "CLUBB10MICRO10",
-#    "CLUBBMICRO10",
+    "CLUBB10MICRO10",
+    "CLUBBMICRO10",
 #    "CLUBBMICRO10FTYPE1",
-#    "ALL10",
+    "ALL10",
 #    "DYN10",
-    "CTRLPA",
-    "CLUBBMICRO10PA",
-    "CLUBBMICRO10ZM10PA",
-    "CLD10PA",
-    "CLD10FTYPE1PA",
-    "ALL10PA",
+#    "CTRLPA",
+#    "CLUBBMICRO10PA",
+#    "CLUBBMICRO10ZM10PA",
+#    "CLD10PA",
+#    "CLD10FTYPE1PA",
+#    "ALL10PA",
 ]
 STYLES = {
     "CTRL": ('k', '-'),
@@ -111,6 +109,8 @@ column_list = sorted(list(column_set))
 ifocus = 29488
 # Max precipitation in ALL10
 #ifocus = 29227
+# Large oscillations found here:
+#ifocus = 3913
 
 #ifocus = -1
 
@@ -199,6 +199,9 @@ derived_variables = [
      'depends': ['PRCO', 'PRAO'],
      'calc': (lambda var_dict: var_dict['PRCO'] + var_dict['PRAO']),
     },
+    {'name': 'WINDSPEED', 'units': r'$m/s$', 'ndim': 2,
+     'depends': ['U', 'V'],
+     'calc': (lambda var_dict: np.sqrt(var_dict['U']**2 + var_dict['V']**2)),}
 ]
 
 # Check that dependencies are satisfied.
@@ -252,7 +255,7 @@ for icase in range(ncases):
     for derived in derived_variables:
         out_vars[case][derived['name']] = derived['calc'](out_vars[case])
 
-PLOT_TOP = 100.
+PLOT_TOP = 700.
 itop = 0
 for level in ilev:
     if level > PLOT_TOP:
