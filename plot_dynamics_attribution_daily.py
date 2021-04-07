@@ -109,8 +109,8 @@ area_sum = area.sum()
 weights = area/area_sum
 rfile0.close()
 
-nbins = 100
-omega_span = (-2.7, 1.)
+nbins = 200
+omega_span = (-1.7, 0.5)
 bin_size = (omega_span[1] - omega_span[0]) / nbins
 
 def time_avg_to_bins(varnames, time_avg):
@@ -263,48 +263,38 @@ def plot_dyn_attr(names, units, scales, log_plot_names):
         plt.savefig('{}_pdf{}.png'.format(name, suffix))
         plt.close()
 
+        ref_plot_var = get_2D(ref_total_dists[name])
         for i in range(case_num):
             pdf_diff = test_total_pdfs[i] - ref_total_pdf
-            test_plot_var = get_2D(ref_total_dists[name]) * pdf_diff
+            dyn_var = ref_plot_var * pdf_diff
             plot_var(omegas,
-                     test_plot_var,
-                     label=TEST_CASES[i].short_name)
+                     dyn_var,
+                     color='b')
             print(name, " for case ", TEST_CASES[i].short_name, " has dynamics diff ",
-                  test_plot_var.sum(), file=log_file, flush=True)
-        plt.axis('tight')
-        plt.xlabel(r'$\omega_{500}$')
-        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
-        plt.savefig('{}_pdf_dyn{}.png'.format(name, suffix))
-        plt.close()
-
-        ref_plot_var = get_2D(ref_total_dists[name])
-        for i in range(case_num):
-            test_plot_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * ref_total_pdf
+                  dyn_var.sum(), file=log_file, flush=True)
+            thermo_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * ref_total_pdf
             plot_var(omegas,
-                     test_plot_var,
-                     label=TEST_CASES[i].short_name)
+                     thermo_var,
+                     color='r')
             print(name, " for case ", TEST_CASES[i].short_name, " has thermodynamics diff ",
-                  test_plot_var.sum(), file=log_file, flush=True)
-        plt.axis('tight')
-        plt.xlabel(r'$\omega_{500}$')
-        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
-        plt.savefig('{}_pdf_thermo{}.png'.format(name, suffix))
-        plt.close()
-
-        ref_plot_var = get_2D(ref_total_dists[name])
-        for i in range(case_num):
-            pdf_diff = test_total_pdfs[i] - ref_total_pdf
-            test_plot_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * pdf_diff
+                  thermo_var.sum(), file=log_file, flush=True)
+            covar_var = (get_2D(test_total_dists[i][name]) - ref_plot_var) * pdf_diff
             plot_var(omegas,
-                     test_plot_var,
-                     label=TEST_CASES[i].short_name)
+                     covar_var,
+                     color='g')
             print(name, " for case ", TEST_CASES[i].short_name, " has covariance diff ",
-                  test_plot_var.sum(), file=log_file, flush=True)
-        plt.axis('tight')
-        plt.xlabel(r'$\omega_{500}$')
-        plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
-        plt.savefig('{}_pdf_covar{}.png'.format(name, suffix))
-        plt.close()
+                  covar_var.sum(), file=log_file, flush=True)
+            total_var = dyn_var + thermo_var + covar_var
+            plot_var(omegas,
+                     total_var,
+                     color='k')
+            print(name, " for case ", TEST_CASES[i].short_name, " has total diff ",
+                  total_var.sum(), file=log_file, flush=True)
+            plt.axis('tight')
+            plt.xlabel(r'$\omega_{500}$')
+            plt.ylabel("Mean {} ({})".format(plot_name, units[name]))
+            plt.savefig('{}_{}_pdf_breakdown{}.png'.format(name, TEST_CASES[i].short_name, suffix))
+            plt.close()
 
 plot_names = {
     'LWCF': "long-wave cloud forcing",
@@ -378,7 +368,9 @@ units = {
     'T': r'$K$',
 }
 #names = list(units.keys())
-names = ['PRECC', 'PRECL', 'PRECT', 'OMEGA500']
+names = ['PRECC', 'PRECL', 'PRECT', 'OMEGA500',
+         'SWCF', 'LWCF', 'CLDTOT', 'CLDLOW', 'CLDMED', 'CLDHGH',
+         'TGCLDIWP', 'TGCLDLWP', 'TMQ', 'PSL']
 scales = dict()
 for name in names:
     scales[name] = 1.
